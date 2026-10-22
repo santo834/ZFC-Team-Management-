@@ -1,0 +1,7 @@
+project_id = "zfc-team-management"
+
+[functions.public-purchase]
+verify_jwt = false
+
+[functions.admin-create-user]
+verify_jwt = true

@@ -1,3 +1,32 @@
+const routeSegments = location.pathname.split("/").filter(Boolean);
+const lastSegment = routeSegments.at(-1) || "";
+const directory = lastSegment === "index.html" ? routeSegments.at(-2) : lastSegment;
+const routeSection = routeSegments.length > 1 ? routeSegments.at(-2) : directory;
+if (["teams", "drivers", "news"].includes(routeSection)) {
+  location.replace("../index.html");
+}
+if ((lastSegment === "index.html" || !lastSegment.includes(".")) && ["sponsors", "hq"].includes(directory)) {
+  location.replace("shop.html");
+}
+
+const publicDestinations = new Set(["insurance/", "sponsors/", "hq/", "marketplace/"]);
+document.querySelectorAll(".topbar nav").forEach((navigation) => {
+  navigation.querySelectorAll("a").forEach((link) => {
+    const destination = new URL(link.href, location.href);
+    const segments = destination.pathname.split("/").filter(Boolean);
+    const section = segments.at(-2);
+    if (!publicDestinations.has(`${section}/`)) {
+      link.remove();
+      return;
+    }
+    if ((section === "sponsors" || section === "hq") && segments.at(-1) === "index.html") {
+      destination.pathname = destination.pathname.replace(/index\.html$/, "shop.html");
+      link.href = destination.href;
+    }
+  });
+});
+document.querySelectorAll(".topbar .login-link").forEach((link) => link.remove());
+
 document.querySelectorAll("[data-directory]").forEach((directory) => {
   const cards = [...directory.querySelectorAll("[data-entry]")];
   const search = directory.querySelector("[data-search]");
