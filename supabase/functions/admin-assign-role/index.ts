@@ -32,40 +32,34 @@ Deno.serve(async (request) => {
     if (callerError || !callerData.user) return response(401, { error: "Anmeldung erforderlich." });
 
     const service = createClient(url, serviceKey, { auth: { persistSession: false } });
-    const { data: profile, error: profileError } = await service
+    const { data: callerProfile, error: profileError } = await service
       .from("profiles").select("role").eq("id", callerData.user.id).single();
-    if (profileError || profile?.role !== "admin") return response(403, { error: "Nur Admins können Konten anlegen." });
+    if (profileError || callerProfile?.role !== "admin") return response(403, { error: "Nur Admins können Rollen ändern." });
 
-    const { email, password, displayName, role, teamId } = await request.json();
-    if (typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-        typeof password !== "string" || password.length < 12 || password.length > 128 ||
-        typeof displayName !== "string" || displayName.trim().length < 1 || displayName.length > 80 ||
+    const { profileId, role, teamId } = await request.json();
+    if (typeof profileId !== "string" ||
         !["admin", "team_chief"].includes(role) ||
         (role === "team_chief" && typeof teamId !== "string") ||
         (role === "admin" && teamId !== null)) {
-      return response(400, { error: "Bitte prüfe E-Mail, Passwort, Rolle und Team." });
+      return response(400, { error: "Bitte prüfe Rolle und Teamzuweisung." });
     }
 
-    const { data: created, error: createError } = await service.auth.admin.createUser({
-      email: email.trim().toLowerCase(),
-      password,
-      email_confirm: true,
-      user_metadata: { display_name: displayName.trim() },
-    });
-    if (createError || !created.user) return response(400, { error: "Konto konnte nicht angelegt werden. Prüfe, ob die E-Mail bereits verwendet wird." });
-
-    const { error: assignmentError } = await service.from("profiles").update({
-      display_name: displayName.trim(),
-      role,
-      team_id: role === "team_chief" ? teamId : null,
-    }).eq("id", created.user.id);
-    if (assignmentError) {
-      await service.auth.admin.deleteUser(created.user.id);
-      return response(500, { error: "Rollenzuweisung fehlgeschlagen; das neue Konto wurde entfernt." });
+    if (role === "team_chief") {
+      const { data: team, error: teamError } = await service
+        .from("teams").select("id").eq("id", teamId).maybeSingle();
+      if (teamError || !team) return response(400, { error: "Das ausgewählte Team wurde nicht gefunden." });
     }
 
-    return response(201, { id: created.user.id, email: created.user.email });
+    const { data: updatedProfile, error: updateError } = await service
+      .from("profiles")
+      .update({ role, team_id: role === "team_chief" ? teamId : null })
+      .eq("id", profileId)
+      .select("id, email, display_name, role, team_id")
+      .single();
+    if (updateError) return response(400, { error: "Rolle konnte nicht gespeichert werden." });
+
+    return response(200, { profile: updatedProfile });
   } catch {
-    return response(500, { error: "Konto konnte nicht angelegt werden." });
+    return response(500, { error: "Rolle konnte nicht gespeichert werden." });
   }
 });

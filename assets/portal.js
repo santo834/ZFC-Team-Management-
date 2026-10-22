@@ -31,7 +31,7 @@
   const teamName = id => teams.find(team => team.id === id)?.name || 'Unbekanntes Team';
   const categoryName = (category='sponsoring') => ({insurance:'Insurance',sponsoring:'Sponsoring',hq:'HQ',marketplace:'Marketplace'})[category] || 'Marketplace';
   const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[]});
-  let data, currentTeamId;
+  let data, currentTeamId, adminProfiles=[];
 
   function load() {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -181,16 +181,11 @@
         </form></section><section class="portal-card"><h2>Hinweis</h2><p>Die Annahme im Demo-Portal ist keine rechtsverbindliche elektronische Signatur. Vor echten Vereinbarungen sind Backend, Identitätsprüfung und rechtliche Dokumente erforderlich.</p></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Vertragsübersicht</h2><div class="portal-item-list">${data.contracts.length?data.contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contract.type)} · ${escapeHtml(teamName(contract.teamId))} · gültig bis ${date(contract.endDate)}</small></div>${statusBadge(contract.status)}</div>`).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
     } else if (tab==='accounts') {
-      content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Neue Admin- und Teamchef-Zugänge anlegen. Teamchefs erhalten Zugriff ausschließlich auf das ausgewählte Team.')}
-        <section class="portal-card"><form class="portal-form" data-form="account">
-          <label>Name<input name="displayName" maxlength="80" required></label>
-          <label>E-Mail-Adresse<input name="email" type="email" maxlength="254" autocomplete="off" required></label>
-          <label>Passwort<input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required><small class="portal-muted">Mindestens 12 Zeichen. Das Passwort wird nicht in der Website gespeichert.</small></label>
-          <label>Rolle<select name="role"><option value="team_chief">Teamchef</option><option value="admin">Admin</option></select></label>
-          <label class="full" data-account-team-field>Team${teamSelect()}</label>
-          <div class="portal-actions"><button class="portal-button primary">Konto anlegen</button></div>
-        </form></section>
-        <div class="portal-warning">Konten werden über Supabase Auth angelegt. Die Supabase-Konfiguration und die Edge Function müssen vor der Nutzung eingerichtet sein.</div>`;
+      content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und bei Teamchefs das Team zu.')}
+        <section class="portal-card"><div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-refresh-profiles>Profile aktualisieren</button></div><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Team</th><th></th></tr></thead><tbody>
+          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team ${profile.role==='admin'?'disabled':''}>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
+        </tbody></table></div></section>
+        <div class="portal-warning">Neue E-Mail-/Passwort-Konten erstellst du im Supabase Dashboard unter Authentication → Users. Nach der E-Mail-Bestätigung erscheint das Profil hier zur Rollenzuweisung.</div>`;
     } else {
       content = `${heading('Support & Betrieb','Probleme und Meldungen','Alle eingereichten Team-Anliegen zentral ansehen und ihren Bearbeitungsstand aktualisieren.')}
         <section class="portal-card"><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Meldung</th><th>Team</th><th>Erstellt</th><th>Status</th><th>Aktion</th></tr></thead><tbody>
@@ -344,11 +339,6 @@
       }
       data.orders.push({id:uid(),offerId:offer.id,offerName:offer.name,category:offer.category||'sponsoring',terms:offer.terms||'',amount:offer.amount,teamId:fields.teamId,contactName:fields.contactName.trim(),email,company:(fields.company||'').trim(),billingAddress:(fields.billingAddress||'').trim(),notes:(fields.notes||'').trim(),status:'pending',createdAt:new Date().toISOString()});
       if (save()) { form.closest('dialog').close(); form.reset(); showToast('Anfrage wurde als Sponsoren-Akte vorgemerkt.'); }
-    } else if (form.dataset.form==='account') {
-      if (!window.zfcSupabase || window.zfcProfile?.role!=='admin') throw new Error('Für die Kontoanlage ist eine angemeldete Admin-Sitzung erforderlich.');
-      const { error } = await window.zfcSupabase.functions.invoke('admin-create-user', {body:{email:fields.email.trim(),password:fields.password,displayName:fields.displayName.trim(),role:fields.role,teamId:fields.role==='team_chief'?fields.teamId:null}});
-      if (error) throw new Error('Konto konnte nicht angelegt werden. Prüfe E-Mail, Passwort und Supabase-Funktionen.');
-      form.reset(); renderAdminTab('accounts'); showToast('Benutzerkonto wurde angelegt.');
     }
   }
 
@@ -404,14 +394,17 @@
     if (offerError) throw offerError;
     data.offers = offerRows.map(mapOffer);
     if (page === 'admin') {
-      const [{data: orderRows, error: orderError}, {data: invoiceRows, error: invoiceError}] = await Promise.all([
+      const [{data: orderRows, error: orderError}, {data: invoiceRows, error: invoiceError}, {data: profileRows, error: profilesError}] = await Promise.all([
         window.zfcSupabase.from('sponsor_orders').select('*').order('created_at', {ascending:false}),
-        window.zfcSupabase.from('invoices').select('*').order('created_at', {ascending:false})
+        window.zfcSupabase.from('invoices').select('*').order('created_at', {ascending:false}),
+        window.zfcSupabase.from('profiles').select('id,email,display_name,role,team_id').order('created_at', {ascending:false})
       ]);
       if (orderError) throw orderError;
       if (invoiceError) throw invoiceError;
+      if (profilesError) throw profilesError;
       data.orders = orderRows.map(mapOrder);
       data.invoices = invoiceRows.map(mapInvoice);
+      adminProfiles = profileRows;
     } else if (page === 'team') {
       const {data: invoiceRows, error} = await window.zfcSupabase.from('invoices').select('*').eq('team_id', selectedTeamId).order('created_at', {ascending:false});
       if (error) throw error;
@@ -449,6 +442,40 @@
   document.addEventListener('click', async event => {
     const button = event.target.closest('[data-admin-tab]');
     if (button && $('#portal-root')) { renderAdminTab(button.dataset.adminTab); return; }
+    const refreshProfiles = event.target.closest('[data-refresh-profiles]');
+    if (refreshProfiles) {
+      refreshProfiles.disabled = true;
+      const {data: profiles, error} = await window.zfcSupabase.from('profiles')
+        .select('id,email,display_name,role,team_id').order('created_at', {ascending:false});
+      if (error) {
+        refreshProfiles.disabled = false;
+        showToast('Profile konnten nicht geladen werden. Prüfe die Supabase-RLS-Richtlinie.',true);
+        return;
+      }
+      adminProfiles=profiles;
+      renderAdminTab('accounts');
+      showToast('Profile aktualisiert.');
+      return;
+    }
+    const saveProfileRole = event.target.closest('[data-save-profile-role]');
+    if (saveProfileRole) {
+      const row = saveProfileRole.closest('[data-profile-row]');
+      const role = row.querySelector('[data-user-role]').value;
+      const teamId = role==='team_chief' ? row.querySelector('[data-user-team]').value : null;
+      saveProfileRole.disabled = true;
+      const {data: result, error} = await window.zfcSupabase.functions.invoke('admin-assign-role', {
+        body:{profileId:saveProfileRole.dataset.saveProfileRole,role,teamId}
+      });
+      if (error) {
+        saveProfileRole.disabled = false;
+        showToast('Rolle konnte nicht gespeichert werden. Prüfe, ob admin-assign-role deployed ist.',true);
+        return;
+      }
+      adminProfiles=adminProfiles.map(profile=>profile.id===result.profile.id?result.profile:profile);
+      renderAdminTab('accounts');
+      showToast('Rolle und Team wurden gespeichert.');
+      return;
+    }
     const buy = event.target.closest('[data-buy-offer]');
     if (buy) { const offer=data.offers.find(item=>item.id===buy.dataset.buyOffer); if(offer)showPurchaseDialog(offer); return; }
     const approve = event.target.closest('[data-approve-order]');
@@ -535,13 +562,10 @@
 
   document.addEventListener('change', event => {
     if (event.target.matches('[data-team-picker]')) { renderTeam(event.target.value); return; }
-    if (event.target.matches('[name="role"]')) {
-      const teamField = $('[data-account-team-field]');
-      if (teamField) {
-        teamField.hidden = event.target.value==='admin';
-        const teamControl = teamField.querySelector('[name="teamId"]');
-        if (teamControl) teamControl.required = event.target.value==='team_chief';
-      }
+    if (event.target.matches('[data-user-role]')) {
+      const row = event.target.closest('[data-profile-row]');
+      const teamControl = row?.querySelector('[data-user-team]');
+      if (teamControl) teamControl.disabled = event.target.value==='admin';
       return;
     }
     if (event.target.matches('[name="gallery"]')) {

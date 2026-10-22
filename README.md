@@ -58,11 +58,11 @@ npx supabase db push
 
 `assets/supabase-config.js` enthält bereits die Projekt-URL und den öffentlichen Publishable-Key. Den `service_role`-Schlüssel niemals hier oder in anderem Browser-Code hinterlegen.
 
-Die beiden bereits angelegten Edge Functions deployen:
+Die Edge Functions für öffentliche Kaufanfragen und Admin-Rollenzuweisungen deployen:
 
 ```sh
 npx supabase functions deploy public-purchase --project-ref qfrsptenzeisvfgiiulm
-npx supabase functions deploy admin-create-user --project-ref qfrsptenzeisvfgiiulm
+npx supabase functions deploy admin-assign-role --project-ref qfrsptenzeisvfgiiulm
 ```
 
 Im Supabase Auth Dashboard den Benutzer `s.barbosa.galaxy@gmail.com` mit einem sicheren Passwort anlegen und die Bestätigungs-E-Mail abschließen. Danach im **SQL Editor** das Profil zum Admin machen (die Migration kann das nur übernehmen, wenn der Benutzer zu diesem Zeitpunkt bereits existiert):
@@ -81,7 +81,7 @@ set role = 'team_chief', team_id = 'scuderia-rosso'
 where id = (select id from auth.users where email = 'chef@example.com');
 ```
 
-Danach unter `/login/` anmelden. Weitere Benutzer lassen sich im Admin unter **Benutzer & Rollen** anlegen; Teamchefs werden dort einem Team zugewiesen. `admin-create-user` prüft die Admin-Rolle serverseitig, setzt das angegebene Startpasswort und ordnet das Profil zu. `public-purchase` prüft Angebot und Preis serverseitig und begrenzt Anfragen je E-Mail-Adresse.
+Zusätzliche Konten werden direkt im Supabase Dashboard unter **Authentication → Users** mit E-Mail und Passwort angelegt. Nach der E-Mail-Bestätigung erzeugt der Datenbank-Trigger das Profil. Im Admin unter **Benutzer & Rollen** weist du anschließend `Admin` oder `Teamchef` zu; Teamchefs benötigen zusätzlich ein Team. Die Function `admin-assign-role` erlaubt diese Änderung nur für angemeldete Admins. `public-purchase` prüft Angebot und Preis serverseitig und begrenzt Anfragen je E-Mail-Adresse.
 
 Der Storage-Bucket `portal-media` ist für Website-Bilder vorbereitet. Bild-Uploads, Verträge und Supportmeldungen sind noch nicht in die gemeinsame Datenbank integriert.
 

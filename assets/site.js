@@ -25,8 +25,6 @@ document.querySelectorAll(".topbar > .nav, .topbar .menu nav").forEach((navigati
     }
   });
 });
-document.querySelectorAll(".topbar .login-link").forEach((link) => link.remove());
-
 document.querySelectorAll("[data-directory]").forEach((directory) => {
   const cards = [...directory.querySelectorAll("[data-entry]")];
   const search = directory.querySelector("[data-search]");

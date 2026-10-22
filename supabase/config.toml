@@ -3,5 +3,5 @@ project_id = "qfrsptenzeisvfgiiulm"
 [functions.public-purchase]
 verify_jwt = false
 
-[functions.admin-create-user]
+[functions.admin-assign-role]
 verify_jwt = true
