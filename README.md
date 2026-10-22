@@ -35,7 +35,7 @@ Die `.nojekyll`-Datei schaltet die Jekyll-Verarbeitung aus. Die öffentlichen Na
 
 Die frühere lokale Finance-Office-Demo ist nicht mehr öffentlich erreichbar. `/office/` leitet zum Admin-Login weiter.
 
-Ohne Supabase-Konfiguration bleiben Admin- und Team-Bereich im lokalen Demo-Modus. Mit Supabase werden Login, Rollen, Teamzuordnung, Angebote, öffentliche Kaufanfragen, Rechnungen und Kontobuchungen gemeinsam gespeichert. Anfragen erscheinen im Admin unter **Kaufanfragen**; dort kann eine Rechnung erstellt und als PDF-Entwurf gedruckt werden. Der tatsächliche Geldtransfer erfolgt manuell außerhalb der Website und wird erst danach im Admin bestätigt. Vertrags- und Supportfunktionen sind weiterhin lokal.
+Mit der eingetragenen Supabase-Konfiguration laufen Login, Rollen, Teamzuordnung, Angebote, öffentliche Kaufanfragen, Rechnungen und Kontobuchungen über Supabase. Damit sich Admin und Teamchefs anmelden können, müssen die Datenbankmigrationen ausgeführt und für jedes Auth-Konto ein korrektes Profil mit Rolle angelegt sein. Anfragen erscheinen im Admin unter **Kaufanfragen**; dort kann eine Rechnung erstellt und als PDF-Entwurf gedruckt werden. Der tatsächliche Geldtransfer erfolgt manuell außerhalb der Website und wird erst danach im Admin bestätigt. Vertrags- und Supportfunktionen sind weiterhin lokal.
 
 GitHub Pages bleibt statisch; Authentifizierung und gemeinsame Datenspeicherung laufen über Supabase. Rechnungen sind zunächst Entwürfe und müssen vor dem Versand um vollständige Aussteller-/Steuerangaben ergänzt und rechtlich geprüft werden. Vertragsannahmen sind keine rechtsgültigen Signaturen. Keine echten Bankzugänge eintragen.
 
@@ -43,19 +43,29 @@ GitHub Pages bleibt statisch; Authentifizierung und gemeinsame Datenspeicherung 
 
 Die Migrationen unter `supabase/migrations/` legen Teams, Profile, Rollen, kategorisierte Angebote, Anfragen, Rechnungen und Kontobuchungen an. Row-Level-Security begrenzt Teamdaten auf das zugewiesene Team. Edge Functions für öffentliche Anfragen und sichere Admin-Kontoanlage liegen unter `supabase/functions/`.
 
-Migration in ein Supabase-Projekt einspielen:
-
-1. Ein Supabase-Projekt anlegen und das Repository lokal mit der Supabase CLI verknüpfen (`supabase link --project-ref <PROJECT_REF>`).
-2. `supabase db push` ausführen.
-3. `assets/supabase-config.js` enthält bereits die Projekt-URL und den öffentlichen Publishable-Key. Den `service_role`-Schlüssel niemals hier oder in anderem Browser-Code hinterlegen.
-4. Beide Edge Functions deployen:
+Supabase CLI einmalig anmelden und das Projekt verknüpfen. Der persönliche Access Token wird ausschließlich direkt in der Terminalabfrage eingegeben, niemals in Chat, Code oder Browserdateien:
 
 ```sh
-supabase functions deploy public-purchase
-supabase functions deploy admin-create-user
+npx supabase login
+npx supabase link --project-ref qfrsptenzeisvfgiiulm
 ```
 
-5. Im Supabase Auth Dashboard den ersten Benutzer `s.barbosa.galaxy@gmail.com` mit einem sicheren Passwort anlegen. Anschließend im **SQL Editor** das Profil zum Admin machen:
+Wenn die Migrationen noch nicht im Projekt ausgeführt wurden, das Schema einmalig pushen:
+
+```sh
+npx supabase db push
+```
+
+`assets/supabase-config.js` enthält bereits die Projekt-URL und den öffentlichen Publishable-Key. Den `service_role`-Schlüssel niemals hier oder in anderem Browser-Code hinterlegen.
+
+Die beiden bereits angelegten Edge Functions deployen:
+
+```sh
+npx supabase functions deploy public-purchase --project-ref qfrsptenzeisvfgiiulm
+npx supabase functions deploy admin-create-user --project-ref qfrsptenzeisvfgiiulm
+```
+
+Im Supabase Auth Dashboard den Benutzer `s.barbosa.galaxy@gmail.com` mit einem sicheren Passwort anlegen und die Bestätigungs-E-Mail abschließen. Danach im **SQL Editor** das Profil zum Admin machen (die Migration kann das nur übernehmen, wenn der Benutzer zu diesem Zeitpunkt bereits existiert):
 
 ```sql
 update public.profiles
@@ -86,4 +96,4 @@ Teams, Fahrer, Partner, Punkte, Gebäude und News sind frei erfundene Beispiele 
 - Saison-, Team-, Fahrer- und News-Inhalte
 - Optional ein eigenes, für die Veröffentlichung lizenziertes Rennsport-Hintergrundbild
 
-Der aktuelle Hero-Hintergrund und die Display-Schrift laden bei Internetverbindung von externen Unsplash-/Google-Fonts-Adressen. Die Seite bleibt auch ohne diese Dienste lesbar; für Datenschutz oder Offline-Nutzung können die Assets später durch lokal bereitgestellte, lizenzierte Dateien ersetzt werden.
+Die Rennsportbilder liegen lokal in `assets/`. Bildnachweise und Creative-Commons-Lizenzen stehen im Footer der Startseite. Die Display-Schrift wird weiterhin von Google Fonts geladen; ohne Internetverbindung greift die lokale Ersatzschrift.

@@ -2,7 +2,15 @@
 
 (() => {
   const STORAGE_KEY = 'zfc-portal-v1';
-  const GALLERY_IMAGE = 'https://images.unsplash.com/photo-1532906619279-a4b7267faa66?auto=format&fit=crop&w=1400&q=85';
+  const scriptUrl = document.currentScript?.src || new URL('assets/portal.js', location.href).href;
+  const assetBase = new URL('.', scriptUrl);
+  const GALLERY_IMAGE = new URL('renault-f1.jpg', assetBase).href;
+  const CATEGORY_IMAGES = {
+    insurance: new URL('formula-3.jpg', assetBase).href,
+    sponsoring: new URL('renault-f1.jpg', assetBase).href,
+    hq: new URL('zandvoort-circuit.jpg', assetBase).href,
+    marketplace: new URL('zandvoort-circuit.jpg', assetBase).href
+  };
   const teams = [
     {id:'scuderia-rosso',name:'Scuderia Rosso',mark:'SR',color:'#e51e2a'},
     {id:'apex-motorsport',name:'Apex Motorsport',mark:'AM',color:'#d7dfeb'},
@@ -228,7 +236,7 @@
     const category = container.dataset.offerCategory;
     const offers = data.offers.filter(offer=>!category || (offer.category||'sponsoring')===category);
     container.innerHTML = offers.length ? offers.map(offer=>`<article class="portal-card portal-sponsor-card">
-      ${offer.image?`<img src="${escapeHtml(offer.image)}" alt="">`:''}<div class="portal-kicker">${categoryName(offer.category)}</div><h2>${escapeHtml(offer.name)}</h2>
+      <img src="${escapeHtml(offer.image||CATEGORY_IMAGES[offer.category]||CATEGORY_IMAGES.marketplace)}" alt="" loading="lazy"><div class="portal-kicker">${categoryName(offer.category)}</div><h2>${escapeHtml(offer.name)}</h2>
       <p>${escapeHtml(offer.description)}</p>${offer.terms?`<p class="portal-terms"><strong>Konditionen</strong><br>${escapeHtml(offer.terms)}</p>`:''}<div class="portal-stat">${money(offer.amount)}</div>
       <div class="portal-actions"><button class="portal-button primary" data-buy-offer="${offer.id}">Anfrage stellen</button>${safeUrl(offer.url)?`<a class="portal-button" href="${escapeHtml(offer.url)}" target="_blank" rel="noopener noreferrer">Mehr erfahren ↗</a>`:''}</div>
     </article>`).join('') : '<div class="portal-empty">Aktuell sind keine Angebote veröffentlicht.</div>';
@@ -421,6 +429,7 @@
       if(data.home.title==='Built to race.' && data.home.claim==='Made to rise.'){
         Object.assign(data.home,{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.'});
       }
+      if(data.home.image?.includes('photo-1532906619279-a4b7267faa66')) data.home.image=GALLERY_IMAGE;
       await loadSharedRecords(page);
     } catch (error) {
       if (root) root.innerHTML = `<main class="portal-main"><div class="portal-warning">${escapeHtml(error.message)}</div></main>`;

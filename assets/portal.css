@@ -29,6 +29,8 @@ body.portal{margin:0;background:var(--portal-bg);color:var(--portal-text);font:1
 .portal-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .portal-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
 .portal-card{min-width:0;padding:20px;background:var(--portal-panel);border:1px solid var(--portal-line);border-radius:12px}
+.portal-card{box-shadow:inset 0 0 0 1px #ff294c0a}
+.portal-card:hover{border-color:#ff294c65;box-shadow:0 0 22px #e51e2a16,inset 0 0 0 1px #39efff12}
 .portal-card h2,.portal-card h3{margin:0 0 13px;font-size:16px}
 .portal-card p{color:var(--portal-muted)}
 .portal-stat{font-size:27px;font-weight:750;letter-spacing:-.035em}
@@ -69,9 +71,16 @@ body.portal{margin:0;background:var(--portal-bg);color:var(--portal-text);font:1
 .portal-role-card p{min-height:42px;color:var(--portal-muted)}
 .portal-role-card .portal-button{margin-top:10px}
 .portal-gallery-preview{max-width:100%;max-height:180px;border:1px solid var(--portal-line);border-radius:8px;object-fit:cover}
-.portal-sponsor-card{display:flex;flex-direction:column;gap:12px}
+.portal-sponsor-card{display:flex;flex-direction:column;gap:12px;border-color:#e51e2a70;box-shadow:0 0 20px #e51e2a1a}
 .portal-sponsor-card img{width:100%;height:165px;border-radius:8px;object-fit:cover;background:#202630}
 .portal-sponsor-card .portal-actions{margin-top:auto}
+.portal-sponsor-card:hover{border-color:#39efff;box-shadow:0 0 24px #39efff22,0 0 30px #e51e2a24}
+.content .page-title{position:relative;isolation:isolate;overflow:hidden;padding:32px;border:1px solid #e51e2a70;border-radius:8px;background:linear-gradient(90deg,#101318ed,#101318c9 62%,#1013189c),url("zandvoort-circuit.jpg") center 52%/cover;box-shadow:0 0 24px #e51e2a16}
+.content .page-title::after{position:absolute;right:0;bottom:0;left:0;height:1px;background:linear-gradient(90deg,#e51e2a,#39efff);content:""}
+.content .page-title>*{position:relative;z-index:1;color:#fff}
+.content .page-title .eyebrow{color:#39efff}
+.content .page-title>p:last-child{max-width:700px;color:#d4d8df}
+.portal-button.primary:hover{box-shadow:0 0 16px #e51e2a55}
 .portal-terms{white-space:pre-line}
 .login-options{position:relative;flex:0 0 auto}
 .login-options>summary{list-style:none;cursor:pointer;padding:10px 16px;border:1px solid #fff6;color:#fff;font-size:12px;font-weight:700;text-transform:uppercase}

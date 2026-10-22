@@ -1,4 +1,4 @@
-project_id = "zfc-team-management"
+project_id = "qfrsptenzeisvfgiiulm"
 
 [functions.public-purchase]
 verify_jwt = false
