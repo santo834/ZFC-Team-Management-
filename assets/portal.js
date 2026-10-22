@@ -22,7 +22,7 @@
   const $ = (selector, root=document) => root.querySelector(selector);
   const teamName = id => teams.find(team => team.id === id)?.name || 'Unbekanntes Team';
   const categoryName = (category='sponsoring') => ({insurance:'Insurance',sponsoring:'Sponsoring',hq:'HQ',marketplace:'Marketplace'})[category] || 'Marketplace';
-  const emptyData = () => ({home:{title:'Built to race.',claim:'Made to rise.',intro:'Die Zenith Formula Championship ist der Ort, an dem Teams zusammenwachsen und jeder Zentimeter zählt. Entdecke das Grid, die Fahrer und die Geschichten hinter der Zielflagge.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[]});
+  const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[]});
   let data, currentTeamId;
 
   function load() {
@@ -162,7 +162,7 @@
           <div class="portal-actions"><button class="portal-button">Buchung erfassen</button></div>
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Kontostände</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card"><div class="portal-item"><span class="portal-team-mark" style="--team-color:${team.color}">${team.mark}</span><strong>${team.name}</strong></div><div class="portal-stat">${money(balance(team.id))}</div></article>`).join('')}</div></section>`;
+        <section class="portal-card" style="margin-top:15px"><h2>Kontostände & Teamzugang</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card"><div class="portal-item"><span class="portal-team-mark" style="--team-color:${team.color}">${team.mark}</span><strong>${team.name}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>`;
     } else if (tab==='contracts') {
       content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen.')}
         <div class="portal-grid two"><section class="portal-card"><h2>Vertragsentwurf anlegen</h2><form class="portal-form" data-form="contract">
@@ -377,12 +377,16 @@
 
   async function loadSharedRecords(page) {
     if (!window.zfcSupabase) return;
+    const requestedTeamId = new URLSearchParams(location.search).get('team');
+    const selectedTeamId = window.zfcProfile?.role==='team_chief'
+      ? window.zfcProfile.team_id
+      : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:teams[0].id);
     if (page==='admin' || page==='team') {
       const {data: teamRows, error: teamError} = await window.zfcSupabase.from('teams').select('id,initial_balance_cents');
       if (teamError) throw teamError;
       teamRows.forEach(row=>{const team=teams.find(item=>item.id===row.id);if(team)team.initialBalance=Number(row.initial_balance_cents);});
       let entriesQuery = window.zfcSupabase.from('account_entries').select('*').order('created_at',{ascending:false});
-      if (page==='team') entriesQuery=entriesQuery.eq('team_id',window.zfcProfile.team_id);
+      if (page==='team') entriesQuery=entriesQuery.eq('team_id',selectedTeamId);
       const {data: entryRows,error: entriesError}=await entriesQuery;
       if (entriesError) throw entriesError;
       data.bookings=entryRows.map(row=>({id:row.id,teamId:row.team_id,direction:row.direction,amount:Number(row.amount_cents),note:row.description,createdAt:row.created_at}));
@@ -400,8 +404,8 @@
       if (invoiceError) throw invoiceError;
       data.orders = orderRows.map(mapOrder);
       data.invoices = invoiceRows.map(mapInvoice);
-    } else if (page === 'team' && window.zfcProfile?.team_id) {
-      const {data: invoiceRows, error} = await window.zfcSupabase.from('invoices').select('*').eq('team_id', window.zfcProfile.team_id).order('created_at', {ascending:false});
+    } else if (page === 'team') {
+      const {data: invoiceRows, error} = await window.zfcSupabase.from('invoices').select('*').eq('team_id', selectedTeamId).order('created_at', {ascending:false});
       if (error) throw error;
       data.invoices = invoiceRows.map(mapInvoice);
     }
@@ -412,7 +416,13 @@
     const page = root?.dataset.portalPage;
     const auth = window.zfcAuthorizePortal ? await window.zfcAuthorizePortal() : null;
     if (window.zfcSupabase && page && !auth) return;
-    try { data = load(); await loadSharedRecords(page); } catch (error) {
+    try {
+      data = load();
+      if(data.home.title==='Built to race.' && data.home.claim==='Made to rise.'){
+        Object.assign(data.home,{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.'});
+      }
+      await loadSharedRecords(page);
+    } catch (error) {
       if (root) root.innerHTML = `<main class="portal-main"><div class="portal-warning">${escapeHtml(error.message)}</div></main>`;
       return;
     }

@@ -23,11 +23,11 @@
     try {
       const profile = await readProfile(session.user.id);
       const page = root.dataset.portalPage;
-      if ((page === 'admin' && profile.role !== 'admin') || (page === 'team' && profile.role !== 'team_chief')) {
+      if ((page === 'admin' && profile.role !== 'admin') || (page === 'team' && !['admin', 'team_chief'].includes(profile.role))) {
         location.replace(profile.role === 'admin' ? '../admin/index.html' : '../team/index.html');
         return null;
       }
-      if (page === 'team' && !profile.team_id) throw new Error('Deinem Teamchef-Konto ist noch kein Team zugewiesen.');
+      if (page === 'team' && profile.role === 'team_chief' && !profile.team_id) throw new Error('Deinem Teamchef-Konto ist noch kein Team zugewiesen.');
       window.zfcProfile = profile;
       return { configured: true, profile };
     } catch (error) {
@@ -43,6 +43,17 @@
   }
 
   window.zfcAuthorizePortal = authorizePortal;
+
+  const requestedRole = new URLSearchParams(location.search).get('role');
+  if (requestedRole === 'admin' || requestedRole === 'team_chief') {
+    const roleLabel = requestedRole === 'admin' ? 'Admin' : 'Teamchef';
+    const kicker = document.querySelector('[data-login-kicker]');
+    const title = document.querySelector('[data-login-title]');
+    const description = document.querySelector('[data-login-description]');
+    if (kicker) kicker.textContent = `${roleLabel}-Login`;
+    if (title) title.textContent = `Als ${roleLabel} anmelden`;
+    if (description) description.textContent = 'Deine gespeicherte Rolle wird geprüft und öffnet den passenden Arbeitsbereich.';
+  }
 
   document.addEventListener('click', async (event) => {
     if (!event.target.closest('[data-sign-out]')) return;

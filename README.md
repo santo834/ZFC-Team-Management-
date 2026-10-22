@@ -24,16 +24,16 @@ Die `.nojekyll`-Datei schaltet die Jekyll-Verarbeitung aus. Die öffentlichen Na
 - `/hq/shop.html` HQ-Angebote und Anfragen
 - `/marketplace/` alle veröffentlichten Angebotsarten
 - `/news/` und einzelne Artikel leiten auf die öffentliche Startseite um
-- `/hq/` öffentliche Gebäudeübersicht
+- `/hq/shop.html` HQ-Angebote; `/hq/` leitet dorthin weiter
 - `/login/` Anmeldung mit E-Mail und Passwort
 - `/admin/` Control Center für Angebote, Kaufanfragen, Konten, Rechnungen und Verträge
 - `/team/` Team-E-Banking mit Kontostand, Rechnungen, Druck/PDF-Ansicht und Vertragsentwürfen
-- `/office/` vorhandenes Browser-Verwaltungstool
+- `/office/` leitet zum geschützten Adminbereich weiter
 - `/contact.html`, `/imprint.html`, `/privacy.html` klar markierte Platzhalter
 
 ## Verwaltungsbereich
 
-Das ursprüngliche `index.html` wurde unverändert nach `office/index.html` verschoben. Das Browsertool bietet weiterhin lokale Team-, Fahrer-, Sponsoren- und virtuelle Kontofunktionen, JSON-Backup, CSV-Export und Buchungsjournal. Seine Daten werden im jeweiligen Browser gespeichert. Es gibt keine Anmeldung, keine Synchronisierung und keinen serverseitigen Zugriffsschutz. Verwende dort keine echten Bank-, Vertrags- oder sensiblen Personendaten.
+Die frühere lokale Finance-Office-Demo ist nicht mehr öffentlich erreichbar. `/office/` leitet zum Admin-Login weiter.
 
 Ohne Supabase-Konfiguration bleiben Admin- und Team-Bereich im lokalen Demo-Modus. Mit Supabase werden Login, Rollen, Teamzuordnung, Angebote, öffentliche Kaufanfragen, Rechnungen und Kontobuchungen gemeinsam gespeichert. Anfragen erscheinen im Admin unter **Kaufanfragen**; dort kann eine Rechnung erstellt und als PDF-Entwurf gedruckt werden. Der tatsächliche Geldtransfer erfolgt manuell außerhalb der Website und wird erst danach im Admin bestätigt. Vertrags- und Supportfunktionen sind weiterhin lokal.
 
@@ -47,7 +47,7 @@ Migration in ein Supabase-Projekt einspielen:
 
 1. Ein Supabase-Projekt anlegen und das Repository lokal mit der Supabase CLI verknüpfen (`supabase link --project-ref <PROJECT_REF>`).
 2. `supabase db push` ausführen.
-3. In `assets/supabase-config.js` die Supabase-Projekt-URL und den öffentlichen `anon`-Schlüssel eintragen. Den `service_role`-Schlüssel niemals hier oder in anderem Browser-Code hinterlegen.
+3. `assets/supabase-config.js` enthält bereits die Projekt-URL und den öffentlichen Publishable-Key. Den `service_role`-Schlüssel niemals hier oder in anderem Browser-Code hinterlegen.
 4. Beide Edge Functions deployen:
 
 ```sh
