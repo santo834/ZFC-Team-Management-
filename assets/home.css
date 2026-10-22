@@ -1,0 +1,3 @@
+.hero::before{background:linear-gradient(90deg,#111214ee 0%,#111214bd 45%,#11121435 100%),linear-gradient(0deg,#1112149c,transparent 38%);z-index:0}
+.hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(.8);z-index:0}
+.hero-inner,.hero-caption{z-index:1}
