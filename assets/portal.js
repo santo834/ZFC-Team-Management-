@@ -12,17 +12,19 @@
     marketplace: new URL('zandvoort-circuit.jpg', assetBase).href
   };
   const teams = [
-    {id:'scuderia-rosso',name:'Scuderia Rosso',mark:'SR',color:'#e51e2a'},
-    {id:'apex-motorsport',name:'Apex Motorsport',mark:'AM',color:'#d7dfeb'},
-    {id:'veloce-racing',name:'Veloce Racing',mark:'VR',color:'#f0b429'},
-    {id:'northstar-gp',name:'Northstar GP',mark:'NG',color:'#60a5fa'},
-    {id:'vector-racing',name:'Vector Racing',mark:'VX',color:'#c7f36b'},
-    {id:'ironclad-racing',name:'Ironclad Racing',mark:'IR',color:'#a8b6c5'},
-    {id:'pulse-motorsport',name:'Pulse Motorsport',mark:'PM',color:'#ea668f'},
-    {id:'cobalt-works',name:'Cobalt Works',mark:'CW',color:'#5688ff'},
-    {id:'summit-gp',name:'Summit GP',mark:'SG',color:'#a1cb88'},
-    {id:'atlas-competition',name:'Atlas Competition',mark:'AC',color:'#ef995d'}
+    {id:'summit-gp',name:'Alpine',mark:'A',logo:'alpine',color:'#0093cc'},
+    {id:'atlas-competition',name:'Aston Martin',mark:'AM',logo:'aston-martin',color:'#00594f'},
+    {id:'cobalt-works',name:'Audi',mark:'A',logo:'audi',color:'#d1001f'},
+    {id:'cadillac',name:'Cadillac',mark:'C',color:'#c8a95b'},
+    {id:'scuderia-rosso',name:'Ferrari',mark:'F',logo:'ferrari',color:'#dc0000'},
+    {id:'ironclad-racing',name:'Haas',mark:'H',logo:'haas',color:'#9da3a8'},
+    {id:'veloce-racing',name:'McLaren',mark:'M',logo:'mclaren',color:'#ff8700'},
+    {id:'apex-motorsport',name:'Mercedes',mark:'M',logo:'mercedes',color:'#00d2be'},
+    {id:'pulse-motorsport',name:'Racing Bulls',mark:'RB',logo:'racing-bulls',color:'#6692ff'},
+    {id:'northstar-gp',name:'Red Bull Racing',mark:'RBR',logo:'red-bull-racing',color:'#1e41ff'},
+    {id:'vector-racing',name:'Williams',mark:'W',logo:'williams',color:'#005aff'}
   ];
+  const teamLogo = team => new URL(`team-logos/${team.logo || team.id}.svg`, assetBase).href;
   const money = cents => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format((Number(cents)||0)/100);
   const date = value => new Intl.DateTimeFormat('de-CH',{dateStyle:'medium'}).format(new Date(value));
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
@@ -106,7 +108,7 @@
       const pendingInvoices = data.invoices.filter(invoice=>invoice.status!=='paid').length;
       content = `${heading('Control Center','Guten Tag, Admin.','Alle wichtigen Vorgänge und Teamkonten an einem Ort.')}
         <div class="portal-grid">
-          <article class="portal-card"><div class="portal-label-text">Teams im Grid</div><div class="portal-stat">10</div><div class="portal-label-text">Teamkonten verwalten</div></article>
+          <article class="portal-card"><div class="portal-label-text">Teams im Grid</div><div class="portal-stat">${teams.length}</div><div class="portal-label-text">Teamkonten verwalten</div></article>
           <article class="portal-card"><div class="portal-label-text">Offene Sponsoren-Akten</div><div class="portal-stat">${openOrders}</div><div class="portal-label-text">Neue Kaufanfragen</div></article>
           <article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${pendingInvoices}</div><div class="portal-label-text">Teamkonto-Vorgänge</div></article>
           <article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${data.contracts.length}</div><div class="portal-label-text">Angebote und Annahmen</div></article>
@@ -129,7 +131,7 @@
         </form></section>
         <section class="portal-card" style="margin-top:15px"><h2>Teamlogos im E-Banking</h2><form class="portal-form" data-form="team-logo">
           <label>Team${teamSelect()}</label>
-          <label>Logo aus der Gerätegalerie<input name="imageFile" type="file" accept="image/*" required><small class="portal-muted">PNG, JPG oder WebP · maximal 600 KB.</small></label>
+          <label>Eigenes Logo (optional)<input name="imageFile" type="file" accept="image/*"><small class="portal-muted">PNG, JPG oder WebP · maximal 600 KB. Ohne Upload wird das gestaltete Team-Badge verwendet.</small></label>
           <div class="portal-actions"><button class="portal-button">Teamlogo speichern</button></div>
         </form></section>`;
     } else if (tab==='offers') {
@@ -170,7 +172,7 @@
           <div class="portal-actions"><button class="portal-button">Buchung erfassen</button></div>
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Kontostände & Teamzugang</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card"><div class="portal-item"><span class="portal-team-mark" style="--team-color:${team.color}">${team.mark}</span><strong>${team.name}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>`;
+        <section class="portal-card" style="margin-top:15px"><h2>Kontostände & Teamzugang</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${teamLogo(team)}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>`;
     } else if (tab==='contracts') {
       content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen.')}
         <div class="portal-grid two"><section class="portal-card"><h2>Vertragsentwurf anlegen</h2><form class="portal-form" data-form="contract">
@@ -210,7 +212,7 @@
       <div class="portal-side-note"><a href="../index.html">← Zur öffentlichen Website</a><br><button class="portal-button" type="button" data-sign-out>Abmelden</button></div>
     </aside><main class="portal-main"><div class="portal-topbar"><div><strong>Team-E-Banking</strong><br><small>Willkommen im digitalen Teamkonto</small></div><div class="portal-actions">${window.zfcSupabase?'<button class="portal-button" type="button" data-sign-out>Abmelden</button>':`<label class="portal-label-text">Demo-Team auswählen <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></div>
       <section id="konto">${heading('Teamkonto','Finanzübersicht',`Team-Logo und Kontobewegungen für ${escapeHtml(selected.name)}.`)}
-        <div class="portal-grid"><article class="portal-card portal-balance"><div class="portal-label-text">Verfügbarer Kontostand</div><div class="portal-stat">${money(balance(selected.id))}</div><div class="portal-label-text">Demo-Buchungen in EUR</div></article><article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${invoices.filter(invoice=>invoice.status!=='paid').length}</div><div class="portal-label-text">Fällig oder in Bearbeitung</div></article><article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${contracts.length}</div><div class="portal-label-text">Entwürfe und Vereinbarungen</div></article><article class="portal-card"><div class="portal-label-text">Team-Logo</div><div class="portal-item">${data.teamLogos[selected.id]?`<img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(data.teamLogos[selected.id])}" alt="${escapeHtml(selected.name)}-Logo">`:`<span class="portal-team-mark" style="--team-color:${selected.color}">${selected.mark}</span>`}<strong>${escapeHtml(selected.name)}</strong></div><div class="portal-label-text">${data.teamLogos[selected.id]?'Hochgeladenes Team-Logo':'Platzhalter bis zum Logo-Upload im Admin Center'}</div></article></div>
+        <div class="portal-grid"><article class="portal-card portal-balance"><div class="portal-label-text">Verfügbarer Kontostand</div><div class="portal-stat">${money(balance(selected.id))}</div><div class="portal-label-text">Demo-Buchungen in EUR</div></article><article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${invoices.filter(invoice=>invoice.status!=='paid').length}</div><div class="portal-label-text">Fällig oder in Bearbeitung</div></article><article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${contracts.length}</div><div class="portal-label-text">Entwürfe und Vereinbarungen</div></article><article class="portal-card"><div class="portal-label-text">Team-Logo</div><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(data.teamLogos[selected.id]||teamLogo(selected))}" alt="${escapeHtml(selected.name)}-Logo"><strong>${escapeHtml(selected.name)}</strong></div><div class="portal-label-text">${data.teamLogos[selected.id]?'Individuelles Logo':'Eigenständiges Team-Badge'}</div></article></div>
         <div class="portal-grid two" style="margin-top:15px"><section class="portal-card" id="rechnungen"><h2>Rechnungen</h2><div class="portal-item-list">${invoices.length?invoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF / Drucken</button>${invoice.status==='open'?`<button class="portal-button primary" data-request-payment="${invoice.id}">Zahlung vormerken</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>
         <section class="portal-card" id="vertraege"><h2>Verträge</h2><div class="portal-item-list">${contracts.length?contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contract.type)} · gültig bis ${date(contract.endDate)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}${contract.status==='pending'?`<button class="portal-button primary" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Letzte Kontobewegungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th></tr></thead><tbody>${bookings.length?bookings.slice(0,10).map(entry=>`<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td class="${entry.direction==='credit'?'portal-kicker':''}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`).join(''):'<tr><td colspan="3" class="portal-empty">Noch keine Buchungen vorhanden.</td></tr>'}</tbody></table></div></section>
@@ -274,9 +276,9 @@
     } else if (form.dataset.form==='team-logo') {
       const fileInput=form.querySelector('[name="imageFile"]');
       const image=fileInput.dataset.image;
-      if(!image) throw new Error('Bitte zuerst ein Teamlogo aus der Gerätegalerie auswählen.');
-      data.teamLogos[fields.teamId]=image;
-      if(save()){renderAdminTab('content');showToast(`Teamlogo für ${teamName(fields.teamId)} gespeichert.`);}
+      if(image) data.teamLogos[fields.teamId]=image;
+      else delete data.teamLogos[fields.teamId];
+      if(save()){renderAdminTab('content');showToast(image?`Eigenes Teamlogo für ${teamName(fields.teamId)} gespeichert.`:`Team-Badge für ${teamName(fields.teamId)} wiederhergestellt.`);}
     } else if (form.dataset.form==='offer') {
       if (fields.url && !safeUrl(fields.url)) throw new Error('Bitte eine gültige http(s)-URL eingeben.');
       const amount = cents(fields.amount);

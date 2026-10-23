@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Audi Team-Badge">
+  <path fill="#191d22" d="M32 3 59 19v26L32 61 5 45V19z"/>
+  <path fill="none" stroke="#ef3340" stroke-width="5" stroke-linejoin="round" d="m32 11 19 11v20L32 53 13 42V22z"/>
+  <path fill="#f4f4f4" d="m20 42 12-23 12 23h-7l-5-10-5 10z"/>
+</svg>

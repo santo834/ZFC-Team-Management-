@@ -18,7 +18,8 @@ Die `.nojekyll`-Datei schaltet die Jekyll-Verarbeitung aus. Die öffentlichen Na
 ## Seiten
 
 - `/` öffentliche Startseite
-- `/teams/`, `/drivers/` und zugehörige Profile leiten auf die öffentliche Startseite um
+- `/teams/` öffentliches Grid mit allen elf Teams der F1-Saison 2026; einzelne Teamprofile sind noch nicht angelegt
+- `/drivers/` und zugehörige Profile leiten auf die öffentliche Startseite um
 - `/insurance/` öffentliche Versicherungsangebote
 - `/sponsors/shop.html` Sponsoring-Angebote und Anfragen
 - `/hq/shop.html` HQ-Angebote und Anfragen
@@ -73,11 +74,12 @@ set role = 'admin', team_id = null
 where id = (select id from auth.users where lower(email) = 's.barbosa.galaxy@gmail.com');
 ```
 
-Teamchef einem Team zuordnen (die Team-ID entspricht den IDs in der Website):
+Teamchef einem Team zuordnen (den Teamnamen und die interne ID kannst du in der Teamtabelle nachsehen):
 
 ```sql
 update public.profiles
-set role = 'team_chief', team_id = 'scuderia-rosso'
+set role = 'team_chief',
+    team_id = (select id from public.teams where name = 'Ferrari')
 where id = (select id from auth.users where email = 'chef@example.com');
 ```
 
@@ -87,7 +89,7 @@ Der Storage-Bucket `portal-media` ist für Website-Bilder vorbereitet. Bild-Uplo
 
 ## Beispieldaten und Marken
 
-Teams, Fahrer, Partner, Punkte, Gebäude und News sind frei erfundene Beispiele und auf den Seiten als solche markiert. Es werden keine offiziellen Kooperationen oder Markenassets behauptet. Vor einer öffentlichen Liga-Nutzung die Beispieldaten ersetzen und echte Veröffentlichungsrechte prüfen.
+Die Teamnamen im öffentlichen Grid entsprechen den elf F1-Teams der Saison 2026. Teamchefs und Fahrer werden später ergänzt. Die lokal erstellten Team-Badges sind eigenständige Entwürfe und keine offiziellen Markenlogos; es werden keine offiziellen Kooperationen behauptet. Partner, Punkte, Gebäude und News bleiben Beispieldaten. Vor einer öffentlichen Liga-Nutzung Veröffentlichungsrechte prüfen.
 
 ## Vor Veröffentlichung ergänzen
 

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="McLaren Team-Badge">
+  <path fill="#ff8700" d="M32 3 61 20v24L32 61 3 44V20z"/>
+  <path fill="#202329" d="M32 11 53 23v18L32 53 11 41V23z"/>
+  <path fill="none" stroke="#ff8700" stroke-width="5" stroke-linejoin="round" d="m20 40 9-17 7 12 8-11"/>
+</svg>

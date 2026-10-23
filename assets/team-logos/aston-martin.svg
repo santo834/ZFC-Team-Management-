@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Aston Martin Team-Badge">
+  <rect x="5" y="5" width="54" height="54" rx="17" fill="#064b45"/>
+  <path d="M13 42 32 15l19 27M19 42l13-18 13 18M22 49h20" fill="none" stroke="#9ed7bf" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

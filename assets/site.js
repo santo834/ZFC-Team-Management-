@@ -2,14 +2,14 @@ const routeSegments = location.pathname.split("/").filter(Boolean);
 const lastSegment = routeSegments.at(-1) || "";
 const directory = lastSegment === "index.html" ? routeSegments.at(-2) : lastSegment;
 const routeSection = routeSegments.length > 1 ? routeSegments.at(-2) : directory;
-if (["teams", "drivers", "news"].includes(routeSection)) {
+if (["teams", "drivers", "news"].includes(routeSection) && !(routeSection === "teams" && ["index.html", "teams"].includes(lastSegment))) {
   location.replace("../index.html");
 }
 if ((lastSegment === "index.html" || !lastSegment.includes(".")) && ["sponsors", "hq"].includes(directory)) {
   location.replace("shop.html");
 }
 
-const publicDestinations = new Set(["insurance/", "sponsors/", "hq/", "marketplace/"]);
+const publicDestinations = new Set(["teams/", "insurance/", "sponsors/", "hq/", "marketplace/"]);
 document.querySelectorAll(".topbar > .nav, .topbar .menu nav").forEach((navigation) => {
   navigation.querySelectorAll("a").forEach((link) => {
     const destination = new URL(link.href, location.href);

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Williams Team-Badge">
+  <circle cx="32" cy="32" r="29" fill="#062b73"/>
+  <path fill="#35a8ff" d="M10 18h10l5 20 7-20h8l7 20 5-20h9L52 47H41l-5-16-5 16H20z"/>
+  <path d="M13 52h38" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+</svg>

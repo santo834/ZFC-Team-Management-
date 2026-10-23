@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mercedes Team-Badge">
+  <circle cx="32" cy="32" r="28" fill="#10282a" stroke="#00d2be" stroke-width="4"/>
+  <path d="M32 11v42M11 32h42M17 17l30 30M47 17 17 47" stroke="#00d2be" stroke-width="3" opacity=".65"/>
+  <path d="m32 17 5 11 12 4-12 4-5 11-5-11-12-4 12-4z" fill="#e9ffff"/>
+</svg>

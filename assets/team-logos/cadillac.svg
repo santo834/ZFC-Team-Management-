@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cadillac Team-Badge">
+  <circle cx="32" cy="32" r="29" fill="#202329" stroke="#c8a95b" stroke-width="3"/>
+  <path d="M13 24h38M13 40h38M21 15v34M32 12v40M43 15v34" fill="none" stroke="#c8a95b" stroke-width="3"/>
+  <circle cx="32" cy="32" r="8" fill="#202329" stroke="#f4e4b0" stroke-width="3"/>
+</svg>

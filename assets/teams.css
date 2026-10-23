@@ -1,0 +1,5 @@
+.directory-row{grid-template-columns:52px minmax(0,1fr) auto;min-height:82px;gap:16px}
+.directory-row:hover{padding-inline:12px}
+.dir-logo{width:48px;height:48px;object-fit:contain}
+.dir-name small{color:#777;font-size:9px}
+@media(max-width:600px){.directory-row{grid-template-columns:44px minmax(0,1fr) auto;gap:11px}.dir-logo{width:42px;height:42px}.dir-name strong{font-size:18px}}
