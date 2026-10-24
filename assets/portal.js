@@ -403,10 +403,11 @@
     if (!container) return;
     const category = container.dataset.offerCategory;
     const offers = data.offers.filter(offer=>!category || (offer.category||'sponsoring')===category);
-    container.innerHTML = offers.length ? offers.map(offer=>`<article class="portal-card portal-sponsor-card">
-      <img src="${escapeHtml(offer.image||CATEGORY_IMAGES[offer.category]||CATEGORY_IMAGES.marketplace)}" alt="" loading="lazy"><div class="portal-kicker">${categoryName(offer.category)}</div><h2>${escapeHtml(offer.name)}</h2>
-      <p>${escapeHtml(offer.description)}</p>${offer.terms?`<p class="portal-terms"><strong>Konditionen</strong><br>${escapeHtml(offer.terms)}</p>`:''}<div class="portal-stat">${money(offer.amount)}</div>
-      <div class="portal-actions"><button class="portal-button primary" data-buy-offer="${offer.id}">Anfrage stellen</button>${safeUrl(offer.url)?`<a class="portal-button" href="${escapeHtml(offer.url)}" target="_blank" rel="noopener noreferrer">Mehr erfahren ↗</a>`:''}</div>
+    container.innerHTML = offers.length ? offers.map(offer=>`<article class="portal-card portal-sponsor-card portal-catalog-card">
+      <div class="catalog-media"><img src="${escapeHtml(offer.image||CATEGORY_IMAGES[offer.category]||CATEGORY_IMAGES.marketplace)}" alt="${escapeHtml(offer.name)}" loading="lazy"><span class="catalog-badge">${categoryName(offer.category)}</span></div>
+      <div class="catalog-body"><h2>${escapeHtml(offer.name)}</h2><p class="catalog-desc">${escapeHtml(offer.description)}</p>${offer.terms?`<p class="portal-terms"><strong>Konditionen</strong><br>${escapeHtml(offer.terms)}</p>`:''}</div>
+      <div class="catalog-foot"><div class="catalog-price"><small>Preis</small><strong>${money(offer.amount)}</strong></div>
+      <div class="portal-actions"><button class="portal-button primary" data-buy-offer="${offer.id}">Anfrage stellen</button>${safeUrl(offer.url)?`<a class="portal-button" href="${escapeHtml(offer.url)}" target="_blank" rel="noopener noreferrer">Mehr erfahren ↗</a>`:''}</div></div>
     </article>`).join('') : '<div class="portal-empty">Aktuell sind keine Angebote veröffentlicht.</div>';
   }
 
