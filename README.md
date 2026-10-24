@@ -40,6 +40,12 @@ Mit der eingetragenen Supabase-Konfiguration laufen Login, Rollen, Teamzuordnung
 
 GitHub Pages bleibt statisch; Authentifizierung und gemeinsame Datenspeicherung laufen über Supabase. Rechnungen sind zunächst Entwürfe und müssen vor dem Versand um vollständige Aussteller-/Steuerangaben ergänzt und rechtlich geprüft werden. Vertragsannahmen sind keine rechtsgültigen Signaturen. Keine echten Bankzugänge eintragen.
 
+## Neu: Verträge, Monatsabrechnung, Bilder
+
+- Admin → **Team-E-Banking**: Team wählen, Verträge (Fahrer, Teamchef, Insurance, Sponsoring, HQ, Fahrerkauf) anlegen, Monatsabrechnung und Rechnungen als PDF öffnen.
+- Eigene Angebotsbilder haben keine Größenbegrenzung mehr (sehr große Bilder werden automatisch verkleinert) und werden zentral gespeichert.
+- Entfernte Angebote werden wirklich gelöscht. Dafür sowie für die neuen Vertragsarten `npx supabase db push` ausführen.
+
 ## Supabase-Schema für Login und Rollen
 
 Die Migrationen unter `supabase/migrations/` legen Teams, Profile, Rollen, kategorisierte Angebote, Anfragen, Rechnungen und Kontobuchungen an. Row-Level-Security begrenzt Teamdaten auf das zugewiesene Team. Edge Functions für öffentliche Anfragen und sichere Admin-Kontoanlage liegen unter `supabase/functions/`.
