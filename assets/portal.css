@@ -89,3 +89,4 @@ body.portal{margin:0;background:var(--portal-bg);color:var(--portal-text);font:1
 .portal-dialog,dialog#purchase-dialog{width:min(720px,calc(100vw - 32px));max-height:90vh;padding:0;border:1px solid var(--portal-line);border-radius:12px;background:var(--portal-panel);color:var(--portal-text)}
 .portal-dialog::backdrop,dialog#purchase-dialog::backdrop{background:#000a}
 .portal-dialog .portal-form{padding:24px}
+img.portal-team-mark{object-fit:contain;padding:4px;background:#ffffff14;border:1px solid var(--portal-line)}
