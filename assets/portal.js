@@ -71,6 +71,7 @@
   function save() {
     try {
       const shared = window.zfcSupabase ? {offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[]} : {};
+      if (window.zfcSupabase) shared.teamLogos={};
       localStorage.setItem(STORAGE_KEY, JSON.stringify({...data,...shared}));
       return true;
     } catch (error) {
@@ -282,11 +283,7 @@
           <img class="portal-gallery-preview" data-home-preview src="${escapeHtml(data.home.image || GALLERY_IMAGE)}" alt="Vorschau des Startseitenbilds">
           <div class="portal-actions"><button class="portal-button primary">Startseite speichern</button></div>
         </form></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Teamlogos im E-Banking</h2><form class="portal-form" data-form="team-logo">
-          <label>Team${teamSelect()}</label>
-          <label>Eigenes Logo (optional)<input name="imageFile" type="file" accept="image/*"><small class="portal-muted">Beliebige Bilddatei. Ohne Upload wird das gestaltete Team-Badge verwendet.</small></label>
-          <div class="portal-actions"><button class="portal-button">Teamlogo speichern</button></div>
-        </form></section>`;
+        <section class="portal-card" style="margin-top:15px"><h2>Teamlogos im E-Banking</h2><p class="portal-muted">Logo-Auswahl mit URL oder Upload findest du im Tab „Team-E-Banking“.</p></section>`;
     } else if (tab==='offers') {
       content = `${heading('Sponsorenshop','Angebote verwalten','Angebote erstellen, veröffentlichen und zentral bearbeiten.')}
         <div class="portal-grid two">
@@ -342,7 +339,7 @@
       const teamInvoices = data.invoices.filter(invoice=>invoice.teamId===team.id);
       content = `${heading('Team-E-Banking','Teamkonto verwalten','Verträge, Monatsabrechnung und Rechnungen des ausgewählten Teams an einem Ort.')}
         <section class="portal-card"><label class="portal-label-text">Team auswählen<select class="portal-select" data-ebank-team>${teamOptions(team.id)}</select></label>
-          <div class="portal-grid" style="margin-top:15px"><article class="portal-card"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(data.teamLogos[team.id]||teamLogo(team))}" alt=""><strong>${escapeHtml(team.name)}</strong></div></article>
+          <div class="portal-grid" style="margin-top:15px"><article class="portal-card"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(data.teamLogos[team.id]||teamLogo(team))}" alt=""><strong>${escapeHtml(team.name)}</strong></div><h3 style="margin:14px 0 6px">Teamlogo anpassen</h3>${logoForm(team.id)}</article>
           <article class="portal-card"><div class="portal-label-text">Kontostand</div><div class="portal-stat">${money(balance(team.id))}</div></article>
           <article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${teamInvoices.filter(invoice=>!['paid','void'].includes(invoice.status)).length}</div></article>
           <article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${teamContracts.length}</div></article></div></section>
@@ -411,6 +408,22 @@
       <p>${escapeHtml(offer.description)}</p>${offer.terms?`<p class="portal-terms"><strong>Konditionen</strong><br>${escapeHtml(offer.terms)}</p>`:''}<div class="portal-stat">${money(offer.amount)}</div>
       <div class="portal-actions"><button class="portal-button primary" data-buy-offer="${offer.id}">Anfrage stellen</button>${safeUrl(offer.url)?`<a class="portal-button" href="${escapeHtml(offer.url)}" target="_blank" rel="noopener noreferrer">Mehr erfahren ↗</a>`:''}</div>
     </article>`).join('') : '<div class="portal-empty">Aktuell sind keine Angebote veröffentlicht.</div>';
+  }
+
+  function logoForm(teamId) {
+    return `<form class="portal-form" data-form="team-logo"><input type="hidden" name="teamId" value="${escapeHtml(teamId)}">
+      <label class="full">Logo-URL (optional)<input name="logoUrl" type="url" maxlength="2000" placeholder="https://…/logo.png"></label>
+      <label class="full">Oder Bild aus der Galerie hochladen<input name="imageFile" type="file" accept="image/*"><small class="portal-muted">Beliebige Bilddatei, Vorschau wird nach der Auswahl gespeichert. Die URL hat Vorrang, wenn beide gesetzt sind.</small></label>
+      <div class="portal-actions"><button class="portal-button primary">Logo speichern</button><button class="portal-button" type="button" data-reset-logo="${escapeHtml(teamId)}">Standard-Logo wiederherstellen</button></div></form>`;
+  }
+
+  async function storeTeamLogo(teamId, logo) {
+    if (window.zfcSupabase) {
+      const {error}=await window.zfcSupabase.from('teams').update({logo_path:logo||null}).eq('id',teamId);
+      if (error) throw new Error(`Logo konnte nicht gespeichert werden: ${error.message}`);
+    }
+    if (logo) data.teamLogos[teamId]=logo; else delete data.teamLogos[teamId];
+    return save();
   }
 
   function safeUrl(value) {
@@ -518,11 +531,11 @@
       data.home.image = form.querySelector('[name="imageFile"]').dataset.image || (fields.gallery==='upload'?data.home.image:fields.gallery);
       if (save()) { applyHome(); showToast('Startseite gespeichert.'); }
     } else if (form.dataset.form==='team-logo') {
-      const fileInput=form.querySelector('[name="imageFile"]');
-      const image=fileInput.dataset.image;
-      if(image) data.teamLogos[fields.teamId]=image;
-      else delete data.teamLogos[fields.teamId];
-      if(save()){renderAdminTab('content');showToast(image?`Eigenes Teamlogo für ${teamName(fields.teamId)} gespeichert.`:`Team-Badge für ${teamName(fields.teamId)} wiederhergestellt.`);}
+      const url=(fields.logoUrl||'').trim();
+      if (url && !safeUrl(url)) throw new Error('Bitte eine gültige http(s)-URL eingeben.');
+      const logo=url||form.querySelector('[name="imageFile"]').dataset.image||'';
+      if (!logo) throw new Error('Bitte eine Logo-URL eingeben oder ein Bild auswählen.');
+      if (await storeTeamLogo(fields.teamId,logo)) { adminTeamId=fields.teamId; renderAdminTab('ebanking'); showToast(`Logo für ${teamName(fields.teamId)} gespeichert.`); }
     } else if (form.dataset.form==='offer') {
       if (fields.url && !safeUrl(fields.url)) throw new Error('Bitte eine gültige http(s)-URL eingeben.');
       const amount = cents(fields.amount);
@@ -648,9 +661,9 @@
       ? window.zfcProfile.team_id
       : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:teams[0].id);
     if (page==='admin' || page==='team') {
-      const {data: teamRows, error: teamError} = await window.zfcSupabase.from('teams').select('id,initial_balance_cents');
+      const {data: teamRows, error: teamError} = await window.zfcSupabase.from('teams').select('id,initial_balance_cents,logo_path');
       if (teamError) throw teamError;
-      teamRows.forEach(row=>{const team=teams.find(item=>item.id===row.id);if(team)team.initialBalance=Number(row.initial_balance_cents);});
+      teamRows.forEach(row=>{const team=teams.find(item=>item.id===row.id);if(team){team.initialBalance=Number(row.initial_balance_cents);if(row.logo_path)data.teamLogos[row.id]=row.logo_path;else delete data.teamLogos[row.id];}});
       let entriesQuery = window.zfcSupabase.from('account_entries').select('*').order('created_at',{ascending:false});
       if (page==='team') entriesQuery=entriesQuery.eq('team_id',selectedTeamId);
       const {data: entryRows,error: entriesError}=await entriesQuery;
@@ -729,6 +742,8 @@
     const editRecord = event.target.closest('[data-edit-record]');
     if (editRecord) { openRecordEditor(editRecord.dataset.editRecord, editRecord.dataset.recordId); return; }
     if (event.target.closest('[data-close-editor]')) { $('#record-editor')?.close(); return; }
+    const resetLogo = event.target.closest('[data-reset-logo]');
+    if (resetLogo) { try { if (await storeTeamLogo(resetLogo.dataset.resetLogo,'')) { renderAdminTab('ebanking'); showToast('Standard-Logo wiederhergestellt.'); } } catch (error) { showToast(error.message,true); } return; }
     const printContract = event.target.closest('[data-print-contract]');
     if (printContract) { const item=data.contracts.find(entry=>entry.id===printContract.dataset.printContract);if(item)contractPrint(item);return; }
     const printStatement = event.target.closest('[data-print-statement]');
