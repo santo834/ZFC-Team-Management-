@@ -1,0 +1,18 @@
+.ob-slideshow{max-width:860px;margin:24px auto;background:#10121a;border:1px solid #39efff55;border-radius:8px;overflow:hidden;color:#f4f6fb;font-size:17px;box-shadow:0 0 24px #39efff22}
+.ob-progress{height:5px;background:#2a2d3a}.ob-progress span{display:block;height:100%;background:var(--red);transition:width .3s}
+.ob-slide{padding:28px 28px 8px;min-height:340px}.ob-slide[hidden]{display:none}
+.ob-step{font-size:13px;font-weight:700;letter-spacing:1px;color:#39efff;margin-bottom:8px}
+.ob-slide h2{margin:0 0 14px;color:#fff;font-size:clamp(28px,5vw,38px);line-height:1.15}.ob-slide li{margin:8px 0;line-height:1.6;color:#f4f6fb}.ob-slide p{line-height:1.7;color:#f4f6fb}.ob-slide strong{color:#fff}
+.ob-note{font-size:14px;color:#b9c0d4!important}
+.ob-mock{background:#1d2030;border:1px solid #ffffff22;color:#fff;padding:18px 20px;border-radius:4px;margin:16px 0}
+.ob-mock-label{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#c9cfe0}.ob-mock-value{font-size:30px;font-weight:700;margin-top:4px}
+.ob-mock-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.ob-button{background:var(--red);padding:8px 12px;border-radius:3px;font-size:15px;font-weight:700;color:#fff}
+.ob-table{width:100%;border-collapse:collapse;margin:14px 0;font-size:16px;color:#f4f6fb}.ob-table th,.ob-table td{text-align:left;padding:8px;border-bottom:1px solid #ffffff22}
+.ob-plus{color:#4ade80!important;font-weight:700}.ob-minus{color:#ff6b7a!important;font-weight:700}
+.ob-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 28px 24px}
+.ob-dots{display:flex;gap:8px}.ob-dots button{width:10px;height:10px;border-radius:50%;border:0;background:#5a5f73;padding:0;cursor:pointer}.ob-dots button[aria-current="true"]{background:var(--red)}
+.ob-controls button:disabled{opacity:.4;cursor:default}
+@media(max-width:680px){.ob-slide{padding:20px 16px 4px;min-height:420px}.ob-controls{padding:12px 16px 20px}}
+
+.ob-controls .portal-button{font-size:16px;padding:12px 20px;color:#fff}.ob-slide .portal-button.primary,.ob-controls .portal-button.primary{color:#fff;background:var(--red);border-color:var(--red)}

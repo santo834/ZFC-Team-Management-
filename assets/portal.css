@@ -102,3 +102,16 @@ img.portal-team-mark{object-fit:contain;padding:4px;background:#ffffff14;border:
 .catalog-price small{display:block;color:var(--portal-muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
 .catalog-price strong{font-size:24px;color:var(--portal-accent)}
 .catalog-foot .portal-actions{margin:0}
+
+.pay-hold{margin-top:12px;padding:10px 12px;border-radius:6px;background:#fff;color:#111;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pay-hold span{font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.pay-overlay{position:fixed;inset:0;z-index:1000;background:#000c;display:grid;place-items:center;padding:20px}
+.pay-box{background:#10121a;border:1px solid #39efff55;border-radius:10px;padding:32px 36px;max-width:380px;text-align:center;color:#fff;display:grid;gap:10px;justify-items:center}
+.pay-box strong{font-size:22px}.pay-box span{color:#c9cfe0;line-height:1.5}
+.pay-circle{width:96px;height:96px}.pay-circle svg{width:100%;height:100%}
+.pay-ring{fill:none;stroke:#39efff;stroke-width:5;stroke-linecap:round;stroke-dasharray:160 60;transform-origin:center;animation:pay-spin .9s linear infinite}
+.pay-check{fill:none;stroke:#22c55e;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:60;stroke-dashoffset:60;opacity:0}
+.pay-overlay.done .pay-ring{animation:none;stroke:#22c55e;stroke-dasharray:none}
+.pay-overlay.done .pay-check{opacity:1;animation:pay-draw .6s ease forwards}
+@keyframes pay-spin{to{transform:rotate(360deg)}}
+@keyframes pay-draw{to{stroke-dashoffset:0}}

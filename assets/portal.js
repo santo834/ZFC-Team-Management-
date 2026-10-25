@@ -90,6 +90,35 @@
     showToast.timeout = window.setTimeout(() => { toast.hidden = true; }, 3600);
   }
 
+  function heldAmount(teamId) {
+    return data.invoices.filter(invoice=>invoice.teamId===teamId && invoice.status==='payment_requested').reduce((total,invoice)=>total+invoice.amount,0);
+  }
+
+  function availableBalance(teamId) { return balance(teamId) - heldAmount(teamId); }
+
+  function showPaymentAnimation() {
+    return new Promise(resolve=>{
+      const overlay=document.createElement('div');
+      overlay.className='pay-overlay';
+      overlay.innerHTML='<div class="pay-box" role="status"><div class="pay-circle"><svg viewBox="0 0 80 80" aria-hidden="true"><circle class="pay-ring" cx="40" cy="40" r="34"/><path class="pay-check" d="M24 42 l12 12 l22 -26"/></svg></div><strong data-pay-title>Payment process</strong><span data-pay-sub>ZFC Credits</span></div>';
+      document.body.append(overlay);
+      setTimeout(()=>{
+        overlay.classList.add('done');
+        overlay.querySelector('[data-pay-title]').textContent='Zahlung bestätigt';
+        overlay.querySelector('[data-pay-sub]').textContent='Betrag on hold, wartet auf Freigabe der Verwaltung';
+        setTimeout(()=>{overlay.remove();resolve();},1800);
+      },3000);
+    });
+  }
+
+  function showCreditHint(missing) {
+    const overlay=document.createElement('div');
+    overlay.className='pay-overlay';
+    overlay.innerHTML=`<div class="pay-box"><strong>Nicht genügend Guthaben</strong><span>Dir fehlen ${money(missing)}. Überlege dir, einen Kredit aufzunehmen.</span><button class="portal-button primary" type="button">Verstanden</button></div>`;
+    overlay.querySelector('button').addEventListener('click',()=>overlay.remove());
+    document.body.append(overlay);
+  }
+
   function balance(teamId) {
     const initial = teams.find(team=>team.id===teamId)?.initialBalance || 0;
     return initial + data.bookings.filter(entry => entry.teamId === teamId).reduce((total, entry) => total + (entry.direction === 'credit' ? entry.amount : -entry.amount), 0);
@@ -373,7 +402,9 @@
     if (!root) return;
     const selected = teams.find(team=>team.id===(window.zfcProfile?.role==='team_chief'?window.zfcProfile.team_id:teamId)) || teams[0];
     currentTeamId = selected.id;
-    const invoices = data.invoices.filter(invoice=>invoice.teamId===selected.id);
+    const allInvoices = data.invoices.filter(invoice=>invoice.teamId===selected.id);
+    const invoices = allInvoices.filter(invoice=>invoice.status!=='payment_requested');
+    const held = heldAmount(selected.id);
     const contracts = data.contracts.filter(contract=>contract.teamId===selected.id);
     const bookings = data.bookings.filter(entry=>entry.teamId===selected.id).slice().reverse();
     const tickets = data.tickets.filter(ticket=>ticket.teamId===selected.id);
@@ -383,8 +414,8 @@
       <div class="portal-side-note"><a href="../index.html">← Zur öffentlichen Website</a><br><button class="portal-button" type="button" data-sign-out>Abmelden</button></div>
     </aside><main class="portal-main"><div class="portal-topbar"><div><strong>Team-E-Banking</strong><br><small>Willkommen im digitalen Teamkonto</small></div><div class="portal-actions">${window.zfcSupabase?'<button class="portal-button" type="button" data-sign-out>Abmelden</button>':`<label class="portal-label-text">Demo-Team auswählen <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></div>
       <section id="konto">${heading('Teamkonto','Finanzübersicht',`Team-Logo und Kontobewegungen für ${escapeHtml(selected.name)}.`)}
-        <div class="portal-grid"><article class="portal-card portal-balance"><div class="portal-label-text">Verfügbarer Kontostand</div><div class="portal-stat">${money(balance(selected.id))}</div><div class="portal-label-text">Demo-Buchungen in EUR</div></article><article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${invoices.filter(invoice=>invoice.status!=='paid').length}</div><div class="portal-label-text">Fällig oder in Bearbeitung</div></article><article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${contracts.length}</div><div class="portal-label-text">Entwürfe und Vereinbarungen</div></article><article class="portal-card"><div class="portal-label-text">Team-Logo</div><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(selected))}" alt="${escapeHtml(selected.name)}-Logo"><strong>${escapeHtml(selected.name)}</strong></div><div class="portal-label-text">${data.teamLogos[selected.id]?'Individuelles Logo':'Eigenständiges Team-Badge'}</div></article></div>
-        <div class="portal-grid two" style="margin-top:15px"><section class="portal-card" id="rechnungen"><h2>Rechnungen</h2><div class="portal-item-list">${invoices.length?invoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF / Drucken</button>${invoice.status==='open'?`<button class="portal-button primary" data-request-payment="${invoice.id}">Zahlung vormerken</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>
+        <div class="portal-grid"><article class="portal-card portal-balance"><div class="portal-label-text">Verfügbarer Kontostand</div><div class="portal-stat">${money(availableBalance(selected.id))}</div><div class="portal-label-text">Demo-Buchungen in EUR</div>${held?`<div class="pay-hold"><span>On hold</span><strong>${money(held)}</strong></div>`:''}</article><article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${allInvoices.filter(invoice=>invoice.status==='open').length}</div><div class="portal-label-text">Fällig</div></article><article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${contracts.length}</div><div class="portal-label-text">Entwürfe und Vereinbarungen</div></article><article class="portal-card"><div class="portal-label-text">Team-Logo</div><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(selected))}" alt="${escapeHtml(selected.name)}-Logo"><strong>${escapeHtml(selected.name)}</strong></div><div class="portal-label-text">${data.teamLogos[selected.id]?'Individuelles Logo':'Eigenständiges Team-Badge'}</div></article></div>
+        <div class="portal-grid two" style="margin-top:15px"><section class="portal-card" id="rechnungen"><h2>Rechnungen</h2><div class="portal-item-list">${invoices.length?invoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF / Drucken</button>${invoice.status==='open'?`<button class="portal-button primary" data-request-payment="${invoice.id}">Jetzt bezahlen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>
         <section class="portal-card" id="vertraege"><h2>Verträge</h2><div class="portal-item-list">${contracts.length?contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section></div>
         ${statementSection(selected.id)}
         <section class="portal-card" style="margin-top:15px"><h2>Letzte Kontobewegungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th></tr></thead><tbody>${bookings.length?bookings.slice(0,10).map(entry=>`<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td class="${entry.direction==='credit'?'portal-kicker':''}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`).join(''):'<tr><td colspan="3" class="portal-empty">Noch keine Buchungen vorhanden.</td></tr>'}</tbody></table></div></section>
@@ -915,12 +946,15 @@
     if (payment) {
       const invoice=data.invoices.find(item=>item.id===payment.dataset.requestPayment);
       if(invoice?.status==='open'){
+        const missing=invoice.amount-availableBalance(invoice.teamId);
+        if (missing>0) { showCreditHint(missing); return; }
         try {
           if (window.zfcSupabase) {
             const {error} = await window.zfcSupabase.rpc('request_invoice_payment',{p_invoice_id:invoice.id});
             if (error) throw error;
           }
-          invoice.status='payment_requested';save();renderTeam(currentTeamId);showToast('Zahlung beim Admin vorgemerkt.');
+          await showPaymentAnimation();
+          invoice.status='payment_requested';save();renderTeam(currentTeamId);showToast('Zahlung on hold. Die Verwaltung bestätigt sie.');
         } catch { showToast('Zahlungsanfrage konnte nicht gesendet werden.',true); }
       }
       return;
@@ -930,6 +964,7 @@
       const invoice=data.invoices.find(item=>item.id===confirmPayment.dataset.confirmPayment);
       if(invoice?.status==='payment_requested'){
         try {
+          if(balance(invoice.teamId)<invoice.amount){showToast('Kontostand reicht für diese Zahlung nicht aus. Bitte zuerst eine Gutschrift buchen.',true);return;}
           if (window.zfcSupabase) {
             const {error} = await window.zfcSupabase.from('invoices').update({status:'paid'}).eq('id',invoice.id);
             if (error) throw error;
