@@ -883,6 +883,26 @@
       showToast('Profile aktualisiert.');
       return;
     }
+    const saveCapital = event.target.closest('[data-save-initial-capital]');
+    if (saveCapital) {
+      const teamId = saveCapital.dataset.saveInitialCapital;
+      const team = teams.find(item=>item.id===teamId);
+      const input = saveCapital.closest('[data-initial-capital-team]')?.querySelector('[data-initial-capital]');
+      const amount = Math.round(Number(String(input?.value||'').replace(',','.'))*100);
+      if (!team || !Number.isFinite(amount) || amount<0) { showToast('Bitte einen gültigen Betrag ab 0 eingeben.',true); return; }
+      saveCapital.disabled = true;
+      try {
+        if (window.zfcSupabase) {
+          const {data:rows,error} = await window.zfcSupabase.from('teams').update({initial_balance_cents:amount}).eq('id',teamId).select('id');
+          if (error) throw new Error(error.message);
+          if (!rows?.length) throw new Error('Keine Berechtigung oder Team nicht gefunden. Ist dein Konto als Admin angelegt?');
+        }
+        team.initialBalance = amount;
+        if (save()) { renderAdminTab('ebanking'); showToast(`Startkapital für ${teamName(teamId)} gespeichert.`); }
+      } catch (error) { showToast(`Startkapital konnte nicht gespeichert werden: ${error.message}`,true); }
+      saveCapital.disabled = false;
+      return;
+    }
     const saveProfileRole = event.target.closest('[data-save-profile-role]');
     if (saveProfileRole) {
       const row = saveProfileRole.closest('[data-profile-row]');
