@@ -806,17 +806,21 @@
     const userIsEditing = () => document.querySelector('dialog[open]') ||
       document.activeElement?.matches?.('input,textarea,select');
     let notify = false;
+    const snapshot = () => JSON.stringify([data.offers,data.invoices,data.contracts,data.bookings,data.tickets,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
     const refresh = async () => {
       if (busy) { again = true; return; }
       if (userIsEditing()) { timer = setTimeout(refresh, 2000); return; }
       busy = true;
       try {
+        const before = snapshot();
         await loadSharedRecords(page);
-        renderPublicOffers();
-        if (page==='admin') renderAdminTab(currentAdminTab);
-        if (page==='team') renderTeam(currentTeamId);
-        applyHome();
-        if (notify && page) showToast('Neue Änderungen wurden live übernommen.');
+        if (snapshot() !== before) {
+          renderPublicOffers();
+          if (page==='admin') renderAdminTab(currentAdminTab);
+          if (page==='team') renderTeam(currentTeamId);
+          applyHome();
+          if (notify && page) showToast('Neue Änderungen wurden live übernommen.');
+        }
         notify = false;
       } catch (error) { console.warn('Live-Aktualisierung fehlgeschlagen', error); }
       busy = false;
@@ -835,8 +839,11 @@
       lastStatus = status;
     });
     // Fallback, falls die Live-Verbindung getrennt ist
-    setInterval(()=>{ if(!document.hidden && lastStatus!=='SUBSCRIBED') refresh(); }, 15000);
-    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) schedule(); });
+    // Zusätzliches Polling, damit Änderungen auch ohne funktionierende Realtime-Verbindung ankommen
+    setInterval(()=>{ if(!document.hidden) refresh(); }, lastStatus==='SUBSCRIBED' ? 20000 : 8000);
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) refresh(); });
+    window.addEventListener('focus',()=>refresh());
+    window.addEventListener('online',()=>refresh());
   }
 
   document.addEventListener('click', async event => {
