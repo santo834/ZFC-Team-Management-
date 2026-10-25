@@ -36,7 +36,7 @@
   const contractTypeName = type => ({...Object.fromEntries(CONTRACT_TYPES),vehicle:'Fahrzeug-Vertrag'})[type] || type;
   const contractTypeOptions = (selected='') => CONTRACT_TYPES.map(([key,label])=>`<option value="${key}" ${key===selected?'selected':''}>${label}</option>`).join('');
   const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[]});
-  let data, currentTeamId, adminProfiles=[], adminTeamId=teams[0].id, statementMonth=new Date().toISOString().slice(0,7);
+  let data, currentTeamId, currentAdminTab='overview', adminProfiles=[], adminTeamId=teams[0].id, statementMonth=new Date().toISOString().slice(0,7);
 
   function readImage(file) {
     const readAsDataUrl = blob => new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});
@@ -256,6 +256,7 @@
   function renderAdminTab(tab='overview') {
     const root = $('#portal-root');
     if (!root) return;
+    currentAdminTab = tab;
     let content = '';
     if (tab==='overview') {
       const openOrders = data.orders.filter(order=>order.status==='pending').length;
@@ -735,6 +736,48 @@
     renderPublicOffers();
     if (page==='admin') renderAdminTab();
     if (page==='team') renderTeam(window.zfcProfile?.team_id || new URLSearchParams(location.search).get('team') || teams[0].id);
+    startRealtime(page);
+  }
+
+  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles'];
+
+  function startRealtime(page) {
+    const client = window.zfcSupabase;
+    if (!client || !page && !$('[data-public-offers]')) return;
+    let timer, busy = false, again = false;
+    const userIsEditing = () => document.querySelector('dialog[open]') ||
+      document.activeElement?.matches?.('input,textarea,select');
+    let notify = false;
+    const refresh = async () => {
+      if (busy) { again = true; return; }
+      if (userIsEditing()) { timer = setTimeout(refresh, 2000); return; }
+      busy = true;
+      try {
+        await loadSharedRecords(page);
+        renderPublicOffers();
+        if (page==='admin') renderAdminTab(currentAdminTab);
+        if (page==='team') renderTeam(currentTeamId);
+        if (notify && page) showToast('Neue Änderungen wurden live übernommen.');
+        notify = false;
+      } catch (error) { console.warn('Live-Aktualisierung fehlgeschlagen', error); }
+      busy = false;
+      if (again) { again = false; schedule(); }
+    };
+    const schedule = () => { notify = true; clearTimeout(timer); timer = setTimeout(refresh, 400); };
+    client.auth.getSession().then(({data:{session}})=>{ if(session) client.realtime.setAuth(session.access_token); });
+    client.auth.onAuthStateChange((_event,session)=>{ if(session) client.realtime.setAuth(session.access_token); });
+    let channel = client.channel('zfc-live-'+(page||'public'));
+    REALTIME_TABLES.forEach(table=>{
+      channel = channel.on('postgres_changes',{event:'*',schema:'public',table},schedule);
+    });
+    let lastStatus = '';
+    channel.subscribe(status=>{
+      if (status==='SUBSCRIBED' && lastStatus && lastStatus!=='SUBSCRIBED') schedule();
+      lastStatus = status;
+    });
+    // Fallback, falls die Live-Verbindung getrennt ist
+    setInterval(()=>{ if(!document.hidden && lastStatus!=='SUBSCRIBED') refresh(); }, 15000);
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) schedule(); });
   }
 
   document.addEventListener('click', async event => {
