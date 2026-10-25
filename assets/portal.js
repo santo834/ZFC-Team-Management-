@@ -472,8 +472,18 @@
     dialog.showModal();
   }
 
+  function invoiceNumber() {
+    const existing = new Set(data.invoices.map(invoice=>invoice.number));
+    let number;
+    do {
+      const [random] = crypto.getRandomValues(new Uint32Array(1));
+      number = String(1000000000 + Math.floor(random / 2**32 * 9000000000));
+    } while (existing.has(number));
+    return number;
+  }
+
   function makeInvoice(teamId, amount, description, dueDate, reference, orderId=null, billTo={}) {
-    const number = `ZFC-${new Date().getFullYear()}-${String(data.invoices.length+1).padStart(4,'0')}`;
+    const number = invoiceNumber();
     const invoice = {id:uid(),number,teamId,amount,description,dueDate,reference,orderId,...billTo,status:'open',createdAt:new Date().toISOString()};
     data.invoices.push(invoice);
     return invoice;
@@ -592,7 +602,7 @@
       const amount = cents(fields.amount);
       let invoice;
       if (window.zfcSupabase) {
-        const invoiceNumber = `ZFC-${new Date().getFullYear()}-${uid().slice(0,8).toUpperCase()}`;
+        const invoiceNumber = invoiceNumber();
         const {data: row,error} = await window.zfcSupabase.from('invoices').insert({
           team_id:fields.teamId,invoice_number:invoiceNumber,description:fields.description.trim(),amount_cents:amount,
           due_date:fields.dueDate,reference:fields.reference.trim(),bill_to_name:fields.billToName.trim(),
@@ -900,7 +910,7 @@
       if(order?.status==='pending'){
         try {
           if (window.zfcSupabase) {
-            const invoiceNumber = `ZFC-${new Date().getFullYear()}-${uid().slice(0,8).toUpperCase()}`;
+            const invoiceNumber = invoiceNumber();
             const dueDate = new Date(Date.now()+30*86400000).toISOString().slice(0,10);
             const {data: invoiceRow, error: invoiceError} = await window.zfcSupabase.from('invoices').insert({
               team_id:order.teamId,order_id:order.id,invoice_number:invoiceNumber,
