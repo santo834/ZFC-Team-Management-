@@ -362,7 +362,7 @@
           <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea></label>
           <label>Gültig bis<input name="endDate" type="date" required></label><div class="portal-actions"><button class="portal-button primary">Zur Prüfung senden</button></div>
         </form></section><section class="portal-card"><h2>Hinweis</h2><p>Die Annahme im Demo-Portal ist keine rechtsverbindliche elektronische Signatur. Vor echten Vereinbarungen sind Backend, Identitätsprüfung und rechtliche Dokumente erforderlich.</p></section></div>
-        <section class="portal-card" style="margin-top:15px"><h2>Vertragsübersicht</h2><div class="portal-item-list">${data.contracts.length?data.contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · ${escapeHtml(teamName(contract.teamId))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
+        <section class="portal-card" style="margin-top:15px"><h2>Vertragsübersicht</h2><div class="portal-item-list">${data.contracts.length?data.contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · ${escapeHtml(teamName(contract.teamId))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
     } else if (tab==='ebanking') {
       const team = teams.find(entry=>entry.id===adminTeamId) || teams[0];
       const teamContracts = data.contracts.filter(contract=>contract.teamId===team.id);
@@ -379,7 +379,7 @@
           <label class="full">Titel<input name="title" maxlength="100" required></label>
           <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea></label>
           <div class="portal-actions"><button class="portal-button primary">Vertrag anlegen</button></div></form></section>
-        <section class="portal-card"><h2>Verträge</h2><div class="portal-item-list">${teamContracts.length?teamContracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge für dieses Team.</div>'}</div></section></div>
+        <section class="portal-card"><h2>Verträge</h2><div class="portal-item-list">${teamContracts.length?teamContracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge für dieses Team.</div>'}</div></section></div>
         ${statementSection(team.id)}
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungen</h2><div class="portal-item-list">${teamInvoices.length?teamInvoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>`;
     } else if (tab==='accounts') {
@@ -1015,15 +1015,20 @@
       }
       return;
     }
-    const contract = event.target.closest('[data-sign-contract],[data-decline-contract]');
-    if (contract) { const item=data.contracts.find(entry=>entry.id===(contract.dataset.signContract||contract.dataset.declineContract));if(item?.status==='pending'){
-        const accept=Boolean(contract.dataset.signContract);
+    const contract = event.target.closest('[data-sign-contract],[data-decline-contract],[data-admin-accept-contract]');
+    if (contract) { const contractId=contract.dataset.signContract||contract.dataset.declineContract||contract.dataset.adminAcceptContract;const item=data.contracts.find(entry=>entry.id===contractId);if(item?.status==='pending'){
+        const accept=Boolean(contract.dataset.signContract||contract.dataset.adminAcceptContract);
+        contract.disabled=true;
         if (window.zfcSupabase) {
           const {error}=await window.zfcSupabase.rpc('respond_to_contract',{p_contract_id:item.id,p_accept:accept});
-          if (error) { showToast(`Antwort konnte nicht gespeichert werden: ${error.message}`,true); return; }
+          if (error) { contract.disabled=false;showToast(`Antwort konnte nicht gespeichert werden: ${error.message}`,true); return; }
         }
         item.status=accept?'signed':'declined';
-        if(save()){renderTeam(currentTeamId);showToast(accept?'Vertrag angenommen.':'Vertrag abgelehnt.');}
+        if(save()){
+          if ($('#portal-root')?.dataset.portalPage==='admin') renderAdminTab(currentAdminTab);
+          else renderTeam(currentTeamId);
+          showToast(accept?'Vertrag angenommen.':'Vertrag abgelehnt.');
+        }
       }
       return; }
     const print = event.target.closest('[data-print-invoice]');

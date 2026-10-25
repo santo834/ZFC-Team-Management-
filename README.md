@@ -27,7 +27,7 @@ Die `.nojekyll`-Datei schaltet die Jekyll-Verarbeitung aus. Die öffentlichen Na
 - `/news/` und einzelne Artikel leiten auf die öffentliche Startseite um
 - `/hq/shop.html` HQ-Angebote; `/hq/` leitet dorthin weiter
 - `/login/` Anmeldung mit E-Mail und Passwort
-- `/admin/` Control Center für Angebote, Kaufanfragen, Konten, Rechnungen und Verträge
+- `/admin/` Control Center für Angebote, Kaufanfragen, Konten, Rechnungen und Verträge; Admins können offene Verträge hier oder im Team-E-Banking annehmen
 - `/team/` Team-E-Banking mit Kontostand, Rechnungen, Druck/PDF-Ansicht und Vertragsentwürfen
 - `/office/` leitet zum geschützten Adminbereich weiter
 - `/contact.html`, `/imprint.html`, `/privacy.html` klar markierte Platzhalter
@@ -36,19 +36,19 @@ Die `.nojekyll`-Datei schaltet die Jekyll-Verarbeitung aus. Die öffentlichen Na
 
 Die frühere lokale Finance-Office-Demo ist nicht mehr öffentlich erreichbar. `/office/` leitet zum Admin-Login weiter.
 
-Mit der eingetragenen Supabase-Konfiguration laufen Login, Rollen, Teamzuordnung, Angebote, öffentliche Kaufanfragen, Rechnungen und Kontobuchungen über Supabase. Damit sich Admin und Teamchefs anmelden können, müssen die Datenbankmigrationen ausgeführt und für jedes Auth-Konto ein korrektes Profil mit Rolle angelegt sein. Anfragen erscheinen im Admin unter **Kaufanfragen**; dort kann eine Rechnung erstellt und als PDF-Entwurf gedruckt werden. Der tatsächliche Geldtransfer erfolgt manuell außerhalb der Website und wird erst danach im Admin bestätigt. Vertrags- und Supportfunktionen sind weiterhin lokal.
+Mit der eingetragenen Supabase-Konfiguration laufen Login, Rollen, Teamzuordnung, Angebote, öffentliche Kaufanfragen, Rechnungen, Kontobuchungen und Verträge über Supabase. Damit sich Admin und Teamchefs anmelden können, müssen die Datenbankmigrationen ausgeführt und für jedes Auth-Konto ein korrektes Profil mit Rolle angelegt sein. Anfragen erscheinen im Admin unter **Kaufanfragen**; dort kann eine Rechnung erstellt und als PDF-Entwurf gedruckt werden. Der tatsächliche Geldtransfer erfolgt manuell außerhalb der Website und wird erst danach im Admin bestätigt. Supportmeldungen sind weiterhin lokal.
 
 GitHub Pages bleibt statisch; Authentifizierung und gemeinsame Datenspeicherung laufen über Supabase. Rechnungen sind zunächst Entwürfe und müssen vor dem Versand um vollständige Aussteller-/Steuerangaben ergänzt und rechtlich geprüft werden. Vertragsannahmen sind keine rechtsgültigen Signaturen. Keine echten Bankzugänge eintragen.
 
 ## Neu: Verträge, Monatsabrechnung, Bilder
 
-- Admin → **Team-E-Banking**: Team wählen, Verträge (Fahrer, Teamchef, Insurance, Sponsoring, HQ, Fahrerkauf) anlegen, Monatsabrechnung und Rechnungen als PDF öffnen.
+- Admin → **Team-E-Banking**: Team wählen, Verträge (Fahrer, Teamchef, Insurance, Sponsoring, HQ, Fahrerkauf) anlegen und offene Verträge annehmen, Monatsabrechnung und Rechnungen als PDF öffnen.
 - Eigene Angebotsbilder haben keine Größenbegrenzung mehr (sehr große Bilder werden automatisch verkleinert) und werden zentral gespeichert.
 - Entfernte Angebote werden wirklich gelöscht. Dafür sowie für die neuen Vertragsarten `npx supabase db push` ausführen.
 
 ## Supabase-Schema für Login und Rollen
 
-Die Migrationen unter `supabase/migrations/` legen Teams, Profile, Rollen, kategorisierte Angebote, Anfragen, Rechnungen und Kontobuchungen an. Row-Level-Security begrenzt Teamdaten auf das zugewiesene Team. Edge Functions für öffentliche Anfragen und sichere Admin-Kontoanlage liegen unter `supabase/functions/`.
+Die Migrationen unter `supabase/migrations/` legen Teams, Profile, Rollen, kategorisierte Angebote, Anfragen, Rechnungen, Kontobuchungen und Verträge an. Row-Level-Security begrenzt Teamdaten auf das zugewiesene Team. Teamchefs können nur Verträge ihres Teams beantworten; Admins können offene Verträge aller Teams annehmen. Edge Functions für öffentliche Anfragen und sichere Admin-Kontoanlage liegen unter `supabase/functions/`.
 
 Supabase CLI einmalig anmelden und das Projekt verknüpfen. Der persönliche Access Token wird ausschließlich direkt in der Terminalabfrage eingegeben, niemals in Chat, Code oder Browserdateien:
 
@@ -57,7 +57,7 @@ npx supabase login
 npx supabase link --project-ref yibyvdxrvnxfnmzmufnm
 ```
 
-Wenn die Migrationen noch nicht im Projekt ausgeführt wurden, das Schema einmalig pushen:
+Neue Migrationen, einschließlich der Admin-Annahme für Verträge, mit dem folgenden Befehl auf das Projekt anwenden:
 
 ```sh
 npx supabase db push
