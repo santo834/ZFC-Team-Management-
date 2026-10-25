@@ -54,7 +54,7 @@ Supabase CLI einmalig anmelden und das Projekt verknüpfen. Der persönliche Acc
 
 ```sh
 npx supabase login
-npx supabase link --project-ref qfrsptenzeisvfgiiulm
+npx supabase link --project-ref yibyvdxrvnxfnmzmufnm
 ```
 
 Wenn die Migrationen noch nicht im Projekt ausgeführt wurden, das Schema einmalig pushen:
@@ -68,8 +68,8 @@ npx supabase db push
 Die Edge Functions für öffentliche Kaufanfragen und Admin-Rollenzuweisungen deployen:
 
 ```sh
-npx supabase functions deploy public-purchase --project-ref qfrsptenzeisvfgiiulm
-npx supabase functions deploy admin-assign-role --project-ref qfrsptenzeisvfgiiulm
+npx supabase functions deploy public-purchase --project-ref yibyvdxrvnxfnmzmufnm
+npx supabase functions deploy admin-assign-role --project-ref yibyvdxrvnxfnmzmufnm
 ```
 
 Im Supabase Auth Dashboard den Benutzer `s.barbosa.galaxy@gmail.com` mit einem sicheren Passwort anlegen und die Bestätigungs-E-Mail abschließen. Danach im **SQL Editor** das Profil zum Admin machen (die Migration kann das nur übernehmen, wenn der Benutzer zu diesem Zeitpunkt bereits existiert):

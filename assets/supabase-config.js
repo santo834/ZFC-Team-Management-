@@ -1,4 +1,4 @@
 window.ZFC_SUPABASE_CONFIG = {
-  url: "https://qfrsptenzeisvfgiiulm.supabase.co",
-  anonKey: "sb_publishable_yCV2RNRCU4QW1gUlQhNaGw_ZmDZusTi"
+  url: "https://yibyvdxrvnxfnmzmufnm.supabase.co",
+  anonKey: "sb_publishable_WJRLuIlGgLNSyNZQ304aTg_U2PMPbGo"
 };
