@@ -9,7 +9,7 @@ if ((lastSegment === "index.html" || !lastSegment.includes(".")) && ["sponsors",
   location.replace("shop.html");
 }
 
-const publicDestinations = new Set(["teams/", "insurance/", "sponsors/", "hq/", "marketplace/"]);
+const publicDestinations = new Set(["teams/", "insurance/", "sponsors/", "hq/", "marketplace/", "login/"]);
 document.querySelectorAll(".topbar > .nav, .topbar .menu nav").forEach((navigation) => {
   navigation.querySelectorAll("a").forEach((link) => {
     const destination = new URL(link.href, location.href);

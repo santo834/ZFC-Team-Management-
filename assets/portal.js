@@ -531,6 +531,10 @@
       data.home.claim = fields.claim.trim();
       data.home.intro = fields.intro.trim();
       data.home.image = form.querySelector('[name="imageFile"]').dataset.image || (fields.gallery==='upload'?data.home.image:fields.gallery);
+      if (window.zfcSupabase) {
+        const {error}=await window.zfcSupabase.from('site_settings').upsert({key:'homepage',value:{title:data.home.title,claim:data.home.claim,intro:data.home.intro,image:data.home.image}});
+        if (error) throw new Error(`Startseite konnte nicht gespeichert werden: ${error.message}`);
+      }
       if (save()) { applyHome(); showToast('Startseite gespeichert.'); }
     } else if (form.dataset.form==='team-logo') {
       const url=(fields.logoUrl||'').trim();
@@ -627,7 +631,23 @@
       <p class="note">Rechnungsentwurf zur Prüfung: Vor Versand sind die vollständigen Angaben des Rechnungsausstellers sowie die geltenden Rechnungsanforderungen zu ergänzen. Zahlung und Überweisung erfolgen außerhalb dieses Portals.</p>`, date(invoice.createdAt));
   }
 
+  function applyTeamLogos() {
+    document.querySelectorAll('img').forEach(img=>{
+      let key=img.dataset.logoKey;
+      if (!key) {
+        const match=(img.getAttribute('src')||'').match(/team-logos\/([\w-]+)\.svg$/);
+        if (!match) return;
+        key=img.dataset.logoKey=match[1];
+      }
+      const team=teams.find(item=>(item.logo||item.id)===key);
+      if (!team) return;
+      const url=teamLogo(team);
+      if (img.getAttribute('src')!==url) img.setAttribute('src',url);
+    });
+  }
+
   function applyHome() {
+    applyTeamLogos();
     if (!data?.home) return;
     const title = $('[data-home-title]'), claim = $('[data-home-claim]'), intro = $('[data-home-intro]'), image = $('[data-home-image]');
     if (title) title.textContent = data.home.title;
@@ -662,15 +682,22 @@
     const selectedTeamId = window.zfcProfile?.role==='team_chief'
       ? window.zfcProfile.team_id
       : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:teams[0].id);
-    if (page==='admin' || page==='team') {
+    const {data: homeRow} = await window.zfcSupabase.from('site_settings').select('value').eq('key','homepage').maybeSingle();
+    if (homeRow?.value && homeRow.value.title && homeRow.value.title!=='Built to race.') {
+      const {title,claim,intro,image}=homeRow.value;
+      data.home={...data.home,title,claim:claim||'',intro:intro||'',...(image?{image}:{})};
+    }
+    {
       const {data: teamRows, error: teamError} = await window.zfcSupabase.from('teams').select('id,initial_balance_cents,logo_path');
       if (teamError) throw teamError;
       teamRows.forEach(row=>{const team=teams.find(item=>item.id===row.id);if(team){team.initialBalance=Number(row.initial_balance_cents);if(row.logo_path)data.teamLogos[row.id]=row.logo_path;else delete data.teamLogos[row.id];}});
       let entriesQuery = window.zfcSupabase.from('account_entries').select('*').order('created_at',{ascending:false});
       if (page==='team') entriesQuery=entriesQuery.eq('team_id',selectedTeamId);
-      const {data: entryRows,error: entriesError}=await entriesQuery;
-      if (entriesError) throw entriesError;
-      data.bookings=entryRows.map(row=>({id:row.id,teamId:row.team_id,direction:row.direction,amount:Number(row.amount_cents),note:row.description,createdAt:row.created_at}));
+      if (page==='admin' || page==='team') {
+        const {data: entryRows,error: entriesError}=await entriesQuery;
+        if (entriesError) throw entriesError;
+        data.bookings=entryRows.map(row=>({id:row.id,teamId:row.team_id,direction:row.direction,amount:Number(row.amount_cents),note:row.description,createdAt:row.created_at}));
+      }
     }
     let offersQuery = window.zfcSupabase.from('sponsor_offers').select('*');
     if(page!=='admin') offersQuery=offersQuery.eq('published',true);
@@ -739,11 +766,11 @@
     startRealtime(page);
   }
 
-  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles'];
+  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings'];
 
   function startRealtime(page) {
     const client = window.zfcSupabase;
-    if (!client || !page && !$('[data-public-offers]')) return;
+    if (!client || !page && !$('[data-public-offers],[data-home-title],img[data-logo-key],img[src*="team-logos/"]')) return;
     let timer, busy = false, again = false;
     const userIsEditing = () => document.querySelector('dialog[open]') ||
       document.activeElement?.matches?.('input,textarea,select');
@@ -757,6 +784,7 @@
         renderPublicOffers();
         if (page==='admin') renderAdminTab(currentAdminTab);
         if (page==='team') renderTeam(currentTeamId);
+        applyHome();
         if (notify && page) showToast('Neue Änderungen wurden live übernommen.');
         notify = false;
       } catch (error) { console.warn('Live-Aktualisierung fehlgeschlagen', error); }
