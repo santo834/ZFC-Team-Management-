@@ -731,9 +731,9 @@
       const amount = cents(fields.amount);
       let invoice;
       if (window.zfcSupabase) {
-        const invoiceNumber = invoiceNumber();
+        const newNumber = invoiceNumber();
         const {data: row,error} = await window.zfcSupabase.from('invoices').insert({
-          team_id:fields.teamId,invoice_number:invoiceNumber,description:fields.description.trim(),amount_cents:amount,
+          team_id:fields.teamId,invoice_number:newNumber,description:fields.description.trim(),amount_cents:amount,
           due_date:fields.dueDate,reference:fields.reference.trim(),bill_to_name:fields.billToName.trim(),
           bill_to_email:fields.billToEmail.trim(),bill_to_company:fields.billToCompany.trim(),bill_to_address:fields.billToAddress.trim(),
           created_by:window.zfcProfile.id
@@ -1128,10 +1128,10 @@
       if(order?.status==='pending'){
         try {
           if (window.zfcSupabase) {
-            const invoiceNumber = invoiceNumber();
+            const newNumber = invoiceNumber();
             const dueDate = new Date(Date.now()+30*86400000).toISOString().slice(0,10);
             const {data: invoiceRow, error: invoiceError} = await window.zfcSupabase.from('invoices').insert({
-              team_id:order.teamId,order_id:order.id,invoice_number:invoiceNumber,
+              team_id:order.teamId,order_id:order.id,invoice_number:newNumber,
               description:`${categoryName(order.category)}: ${order.offerName}`,amount_cents:order.amount,
               due_date:dueDate,reference:order.id,bill_to_name:order.contactName,bill_to_email:order.email,
               bill_to_company:order.company,bill_to_address:order.billingAddress,created_by:window.zfcProfile.id
