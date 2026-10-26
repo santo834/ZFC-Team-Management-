@@ -3,7 +3,7 @@
 -- Bestehende Buchungen werden der Basiskarte des jeweiligen Teams zugeordnet.
 -- Enthält außerdem den Fix für die öffentliche Sicht: Besucher ohne Login konnten veröffentlichte
 -- Angebote und die Startseite nicht lesen (is_admin() war für anon gesperrt).
--- Bereits eingespielte Funktionen (z. B. admin_reset_data, admin_set_profile_role) bleiben unverändert.
+-- Enthält außerdem Rechnungspositionen (invoices.items) und die Funktion admin_reset_data() für den Reset-Button.
 
 -- ===== virtual_cards =====
 -- Jedes Team hat automatisch eine Basiskarte (Startkapital + Auszahlungen landen dort).
@@ -322,6 +322,102 @@ revoke all on function public.approve_card_request(uuid, text, bigint, text) fro
 grant execute on function public.request_invoice_payment(uuid, uuid) to authenticated;
 grant execute on function public.transfer_between_cards(uuid, uuid, bigint) to authenticated;
 grant execute on function public.approve_card_request(uuid, text, bigint, text) to authenticated;
+
+-- ===== Rechnungspositionen & Daten-Reset =====
+alter table public.invoices
+  add column if not exists items jsonb not null default '[]'::jsonb;
+
+-- Setzt alle Geldbewegungen, Rechnungen, Anfragen, Verträge und Tickets zurück; Teamkonten stehen danach auf null.
+-- Karten bleiben erhalten (Kreditrahmen unverändert).
+create or replace function public.admin_reset_data()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not (select public.is_admin()) then
+    raise exception 'Nur Admins können Daten zurücksetzen.';
+  end if;
+
+  delete from public.account_entries where true;
+  delete from public.invoices where true;
+  delete from public.sponsor_orders where true;
+  delete from public.contracts where true;
+  delete from public.support_tickets where true;
+  delete from public.card_requests where true;
+  update public.teams set initial_balance_cents = 0 where true;
+end;
+$$;
+revoke all on function public.admin_reset_data() from public, anon;
+grant execute on function public.admin_reset_data() to authenticated;
+
+-- ===== Doppelrolle: Admin darf zusätzlich Teamchef eines Teams sein =====
+alter table public.profiles drop constraint if exists profiles_team_role_check;
+alter table public.profiles add constraint profiles_team_role_check check (role in ('admin', 'team_chief'));
+
+create or replace function public.current_app_role()
+returns public.app_role
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when profile.team_id is not null then 'team_chief'::public.app_role else profile.role end
+  from public.profiles as profile
+  where profile.id = (select auth.uid())
+$$;
+
+create or replace function public.protect_profile_role()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if (tg_op = 'INSERT' and new.role <> 'team_chief')
+     or (tg_op = 'UPDATE' and new.role is distinct from old.role) then
+    if auth.role() is distinct from 'service_role'
+       and session_user not in ('postgres', 'supabase_admin')
+       and not (select public.is_admin()) then
+      raise exception 'Only a trusted administrator can change account roles';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+-- Rollen und Team direkt im Webportal ändern.
+create or replace function public.admin_set_profile_role(p_profile_id uuid, p_role public.app_role, p_team_id text)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  result public.profiles;
+begin
+  if not (select public.is_admin()) then
+    raise exception 'Nur Admins können Rollen ändern.';
+  end if;
+  if p_team_id is not null and not exists (select 1 from public.teams where id = p_team_id) then
+    raise exception 'Das ausgewählte Team wurde nicht gefunden.';
+  end if;
+  if p_role = 'team_chief' and p_team_id is null then
+    raise exception 'Ein Teamchef braucht ein Team.';
+  end if;
+  if p_profile_id = (select auth.uid()) and p_role <> 'admin' then
+    raise exception 'Du kannst dir die Admin-Rolle nicht selbst entziehen.';
+  end if;
+
+  update public.profiles set role = p_role, team_id = p_team_id where id = p_profile_id returning * into result;
+  if not found then
+    raise exception 'Profil nicht gefunden. Der Benutzer muss sich einmal registriert haben bzw. unter Authentication angelegt sein.';
+  end if;
+  return result;
+end;
+$$;
+revoke all on function public.admin_set_profile_role(uuid, public.app_role, text) from public, anon;
+grant execute on function public.admin_set_profile_role(uuid, public.app_role, text) to authenticated;
 
 -- Öffentliche Angebote: die Lese-Policies rufen is_admin() auf, das auch für Besucher ohne Login ausführbar sein muss.
 grant execute on function public.is_admin() to anon, authenticated;

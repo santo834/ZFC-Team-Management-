@@ -142,3 +142,12 @@ img.portal-team-mark{object-fit:contain;padding:4px;background:#ffffff14;border:
 .vcard-add{border:2px dashed #8aa89b;background:transparent;color:#47685a;align-items:center;justify-content:center;gap:6px;font-weight:700;box-shadow:none;cursor:pointer}
 .vcard-add::before{display:none}
 .vcard-add span{font-size:30px;line-height:1}
+
+.invoice-items{display:grid;gap:8px}
+.invoice-items-head,.invoice-item-row{display:grid;grid-template-columns:minmax(0,1fr) 140px 40px;gap:8px;align-items:center}
+.invoice-items-head{color:var(--portal-muted);font-size:11px}
+.invoice-item-row .portal-button{padding:9px 0}
+.invoice-items>.portal-button{justify-self:start}
+.invoice-total{text-align:right;color:var(--portal-muted)}
+.invoice-total strong{color:var(--portal-text);font-size:18px}
+@media(max-width:740px){.invoice-items-head{display:none}.invoice-item-row{grid-template-columns:minmax(0,1fr) 110px 40px}}

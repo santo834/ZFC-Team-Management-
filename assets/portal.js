@@ -386,8 +386,13 @@
     } else if (tab==='finance') {
       content = `${heading('Teamkonten','Rechnungen & Buchungen','Rechnungen hier erstellen; Teamchefs sehen sie im Teamkonto.')}
         <div class="portal-grid two"><section class="portal-card"><h2>Rechnung erstellen</h2><form class="portal-form" data-form="invoice">
-          <label>Team${teamSelect()}</label><label>Betrag in EUR<input name="amount" type="number" min="0.01" step="0.01" required></label>
-          <label class="full">Beschreibung<input name="description" maxlength="120" required></label>
+          <label class="full">Team${teamSelect()}</label>
+          <div class="full invoice-items" data-invoice-items>
+            <div class="invoice-items-head"><span>Position</span><span>Betrag in EUR</span><span></span></div>
+            ${invoiceItemRow()}
+            <button class="portal-button" type="button" data-add-invoice-item>+ Weiteren Betrag hinzufügen</button>
+            <div class="invoice-total">Gesamtbetrag: <strong data-invoice-total>${money(0)}</strong></div>
+          </div>
           <label>Rechnung an<input name="billToName" maxlength="120"></label><label>Rechnungs-E-Mail (optional)<input name="billToEmail" type="email" maxlength="254" placeholder="optional"></label>
           <label>Unternehmen<input name="billToCompany" maxlength="120"></label><label class="full">Rechnungsanschrift<textarea name="billToAddress" maxlength="300"></textarea></label>
           <label>Fällig am<input name="dueDate" type="date" required></label>
@@ -401,7 +406,10 @@
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-edit-record="invoice" data-record-id="${invoice.id}">Bearbeiten</button><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>`;
+        <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>
+        <section class="portal-card reset-card" style="margin-top:15px"><h2>Daten zurücksetzen</h2>
+          <p class="portal-muted">Löscht alle Rechnungen, Kontobuchungen, Kaufanfragen, Verträge, Tickets und Kredit-Anträge und setzt die Teamkonten (inkl. Startkapital) auf 0 zurück. Karten bleiben bestehen. Das kann nicht rückgängig gemacht werden, z. B. für den Start einer neuen Saison.</p>
+          <div class="portal-actions"><button class="portal-button danger" type="button" data-reset-data>Alle Daten zurücksetzen</button></div></section>`;
     } else if (tab==='contracts') {
       content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen.')}
         <div class="portal-grid two"><section class="portal-card"><h2>Vertragsentwurf anlegen</h2><form class="portal-form" data-form="contract" data-return-tab="contracts">
@@ -433,7 +441,7 @@
     } else if (tab==='accounts') {
       content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und bei Teamchefs das Team zu.')}
         <section class="portal-card"><div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-refresh-profiles>Profile aktualisieren</button></div><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Team</th><th></th></tr></thead><tbody>
-          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team ${profile.role==='admin'?'disabled':''}>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
+          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team><option value="" ${profile.team_id?'':'selected'}>Kein Team</option>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
         </tbody></table></div></section>
         <div class="portal-warning">Neue E-Mail-/Passwort-Konten erstellst du im Supabase Dashboard unter Authentication → Users. Nach der E-Mail-Bestätigung erscheint das Profil hier zur Rollenzuweisung.</div>`;
     } else if (tab==='cards') {
@@ -611,9 +619,35 @@
     return number;
   }
 
-  function makeInvoice(teamId, amount, description, dueDate, reference, orderId=null, billTo={}) {
+  function invoiceItemRow() {
+    return '<div class="invoice-item-row"><input name="itemDescription" maxlength="120" placeholder="Beschreibung" required><input name="itemAmount" type="number" min="0.01" step="0.01" placeholder="0.00" required><button class="portal-button" type="button" data-remove-invoice-item aria-label="Position entfernen">×</button></div>';
+  }
+
+  function updateInvoiceTotal(wrap) {
+    const total = [...wrap.querySelectorAll('[name="itemAmount"]')].reduce((sum,input)=>sum+(Math.round(Number(input.value)*100)||0),0);
+    const output = wrap.querySelector('[data-invoice-total]');
+    if (output) output.textContent = money(total);
+  }
+
+  function readInvoiceItems(form) {
+    const items = [...form.querySelectorAll('.invoice-item-row')].map(row=>({
+      description:row.querySelector('[name="itemDescription"]').value.trim(),
+      amount:cents(row.querySelector('[name="itemAmount"]').value)
+    }));
+    if (!items.length || items.some(item=>!item.description)) throw new Error('Bitte jede Position beschreiben.');
+    const amount = items.reduce((sum,item)=>sum+item.amount,0);
+    if (amount > 100000000000) throw new Error('Bitte einen gültigen Betrag eingeben.');
+    const description = items.map(item=>item.description).join(' · ').slice(0,500);
+    return {items,amount,description};
+  }
+
+  function invoiceItems(invoice) {
+    return Array.isArray(invoice.items) && invoice.items.length ? invoice.items : [{description:invoice.description,amount:invoice.amount}];
+  }
+
+  function makeInvoice(teamId, amount, description, dueDate, reference, orderId=null, billTo={}, items=[]) {
     const number = invoiceNumber();
-    const invoice = {id:uid(),number,teamId,amount,description,dueDate,reference,orderId,...billTo,status:'open',createdAt:new Date().toISOString()};
+    const invoice = {id:uid(),number,teamId,amount,description,items,dueDate,reference,orderId,...billTo,status:'open',createdAt:new Date().toISOString()};
     data.invoices.push(invoice);
     return invoice;
   }
@@ -659,9 +693,9 @@
         if (!fields.number.trim() || !fields.description.trim() || !fields.dueDate) throw new Error('Nummer, Beschreibung und Fälligkeitsdatum sind erforderlich.');
         if (item.status==='paid' && fields.status!=='paid') throw new Error('Eine bezahlte Rechnung kann hier nicht zurückgesetzt werden.');
         if (fields.status==='paid' && item.status!=='paid') throw new Error('Bitte nutze „Zahlung bestätigen“, damit das Teamkonto korrekt belastet wird.');
-        updated={...item,teamId,number:fields.number.trim(),description:fields.description.trim(),amount,dueDate:fields.dueDate,reference:fields.reference.trim(),billToName:fields.billToName.trim(),billToEmail:fields.billToEmail.trim(),billToCompany:fields.billToCompany.trim(),billToAddress:fields.billToAddress.trim(),status:fields.status};
+        updated={...item,teamId,number:fields.number.trim(),description:fields.description.trim(),amount,items:amount===item.amount?(item.items||[]):[],dueDate:fields.dueDate,reference:fields.reference.trim(),billToName:fields.billToName.trim(),billToEmail:fields.billToEmail.trim(),billToCompany:fields.billToCompany.trim(),billToAddress:fields.billToAddress.trim(),status:fields.status};
         table='invoices';
-        payload={team_id:teamId,invoice_number:updated.number,description:updated.description,amount_cents:amount,due_date:updated.dueDate,reference:updated.reference,bill_to_name:updated.billToName,bill_to_email:updated.billToEmail,bill_to_company:updated.billToCompany,bill_to_address:updated.billToAddress,status:updated.status};
+        payload={team_id:teamId,invoice_number:updated.number,description:updated.description,items:updated.items,amount_cents:amount,due_date:updated.dueDate,reference:updated.reference,bill_to_name:updated.billToName,bill_to_email:updated.billToEmail,bill_to_company:updated.billToCompany,bill_to_address:updated.billToAddress,status:updated.status};
       } else if (type==='contract') {
         if (!fields.title.trim() || !fields.terms.trim() || !fields.endDate) throw new Error('Titel, Konditionen und Enddatum sind erforderlich.');
         updated={...item,teamId,type:fields.type,title:fields.title.trim(),terms:fields.terms.trim(),endDate:fields.endDate,status:fields.status};
@@ -728,12 +762,12 @@
       }
       if (save()) { renderAdminTab('offers'); showToast('Angebot veröffentlicht.'); }
     } else if (form.dataset.form==='invoice') {
-      const amount = cents(fields.amount);
+      const {items,amount,description} = readInvoiceItems(form);
       let invoice;
       if (window.zfcSupabase) {
         const newNumber = invoiceNumber();
         const {data: row,error} = await window.zfcSupabase.from('invoices').insert({
-          team_id:fields.teamId,invoice_number:newNumber,description:fields.description.trim(),amount_cents:amount,
+          team_id:fields.teamId,invoice_number:newNumber,description,items,amount_cents:amount,
           due_date:fields.dueDate,reference:fields.reference.trim(),bill_to_name:fields.billToName.trim(),
           bill_to_email:fields.billToEmail.trim(),bill_to_company:fields.billToCompany.trim(),bill_to_address:fields.billToAddress.trim(),
           created_by:window.zfcProfile.id
@@ -741,7 +775,7 @@
         if (error) throw new Error(`Rechnung konnte nicht erstellt werden: ${error.message}`);
         invoice=mapInvoice(row);data.invoices.unshift(invoice);
       } else {
-        invoice = makeInvoice(fields.teamId,amount,fields.description.trim(),fields.dueDate,fields.reference.trim(),null,{billToName:fields.billToName,billToEmail:fields.billToEmail,billToCompany:fields.billToCompany,billToAddress:fields.billToAddress});
+        invoice = makeInvoice(fields.teamId,amount,description,fields.dueDate,fields.reference.trim(),null,{billToName:fields.billToName,billToEmail:fields.billToEmail,billToCompany:fields.billToCompany,billToAddress:fields.billToAddress},items);
       }
       if (save()) { renderAdminTab('finance'); showToast(`Rechnung ${invoice.number} erstellt.`); }
     } else if (form.dataset.form==='booking') {
@@ -839,7 +873,7 @@
     const statusText = {open:'Offen',payment_requested:'Zahlung vorgemerkt',paid:'Bezahlt',void:'Storniert'}[invoice.status] || invoice.status;
     openDocument('Rechnung', invoice.number, `<h1>Rechnung</h1><p class="subtitle">Status: ${escapeHtml(statusText)}</p>
       <div class="parties"><div class="party"><small>Rechnung an</small>${recipient}</div><div class="party"><small>Rechnungsdetails</small>Rechnungsnummer: <b>${escapeHtml(invoice.number)}</b><br>Rechnungsdatum: ${date(invoice.createdAt)}<br>Fällig am: ${date(invoice.dueDate)}<br>Team: ${escapeHtml(team.name)}<br>Referenz: ${escapeHtml(invoice.reference||'—')}</div></div>
-      <table><thead><tr><th>Pos.</th><th>Beschreibung</th><th class="num">Betrag</th></tr></thead><tbody><tr><td>1</td><td>${escapeHtml(invoice.description)}</td><td class="num">${money(invoice.amount)}</td></tr><tr class="sum"><td colspan="2">Gesamtbetrag (EUR)</td><td class="num">${money(invoice.amount)}</td></tr></tbody></table>
+      <table><thead><tr><th>Pos.</th><th>Beschreibung</th><th class="num">Betrag</th></tr></thead><tbody>${invoiceItems(invoice).map((item,index)=>`<tr><td>${index+1}</td><td>${escapeHtml(item.description)}</td><td class="num">${money(item.amount)}</td></tr>`).join('')}<tr class="sum"><td colspan="2">Gesamtbetrag (EUR)</td><td class="num">${money(invoice.amount)}</td></tr></tbody></table>
       <p>Bitte begleiche den Betrag bis zum ${date(invoice.dueDate)} unter Angabe der Rechnungsnummer.</p>
       <p class="note">Rechnungsentwurf zur Prüfung: Vor Versand sind die vollständigen Angaben des Rechnungsausstellers sowie die geltenden Rechnungsanforderungen zu ergänzen. Zahlung und Überweisung erfolgen außerhalb dieses Portals.</p>`, date(invoice.createdAt));
   }
@@ -878,7 +912,7 @@
   }
 
   function mapInvoice(row) {
-    return {id:row.id,number:row.invoice_number,teamId:row.team_id,amount:Number(row.amount_cents),description:row.description,dueDate:row.due_date,reference:row.reference||'',orderId:row.order_id,billToName:row.bill_to_name||'',billToEmail:row.bill_to_email||'',billToCompany:row.bill_to_company||'',billToAddress:row.bill_to_address||'',status:row.status,cardId:row.card_id||null,createdAt:row.created_at};
+    return {id:row.id,number:row.invoice_number,teamId:row.team_id,amount:Number(row.amount_cents),description:row.description,items:Array.isArray(row.items)?row.items:[],dueDate:row.due_date,reference:row.reference||'',orderId:row.order_id,billToName:row.bill_to_name||'',billToEmail:row.bill_to_email||'',billToCompany:row.bill_to_company||'',billToAddress:row.bill_to_address||'',status:row.status,cardId:row.card_id||null,createdAt:row.created_at};
   }
 
   function mapEntry(row) {
@@ -904,7 +938,7 @@
   async function loadSharedRecords(page) {
     if (!window.zfcSupabase) return;
     const requestedTeamId = new URLSearchParams(location.search).get('team');
-    const selectedTeamId = window.zfcProfile?.role==='team_chief'
+    const selectedTeamId = window.zfcProfile?.team_id
       ? window.zfcProfile.team_id
       : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:teams[0].id);
     const {data: homeRow} = await window.zfcSupabase.from('site_settings').select('value').eq('key','homepage').maybeSingle();
@@ -1060,6 +1094,34 @@
     const editRecord = event.target.closest('[data-edit-record]');
     if (editRecord) { openRecordEditor(editRecord.dataset.editRecord, editRecord.dataset.recordId); return; }
     if (event.target.closest('[data-close-editor]')) { $('#record-editor')?.close(); return; }
+    const addItem = event.target.closest('[data-add-invoice-item]');
+    if (addItem) { addItem.insertAdjacentHTML('beforebegin',invoiceItemRow()); return; }
+    const removeItem = event.target.closest('[data-remove-invoice-item]');
+    if (removeItem) {
+      const wrap = removeItem.closest('[data-invoice-items]');
+      if (wrap.querySelectorAll('.invoice-item-row').length>1) removeItem.closest('.invoice-item-row').remove();
+      else wrap.querySelectorAll('input').forEach(input=>{input.value='';});
+      updateInvoiceTotal(wrap);
+      return;
+    }
+    const resetData = event.target.closest('[data-reset-data]');
+    if (resetData) {
+      if (!confirm('Wirklich ALLE Rechnungen, Buchungen, Anfragen, Verträge und Tickets löschen und alle Teamkonten auf 0 setzen?')) return;
+      if (!confirm('Letzte Bestätigung: Dieser Vorgang kann nicht rückgängig gemacht werden.')) return;
+      resetData.disabled = true;
+      try {
+        if (window.zfcSupabase) {
+          const {error} = await window.zfcSupabase.rpc('admin_reset_data');
+          if (error) throw new Error(error.message);
+          await loadSharedRecords('admin');
+        } else {
+          Object.assign(data,{invoices:[],bookings:[],orders:[],contracts:[],tickets:[],cardRequests:[]});
+          teams.forEach(team=>{team.initialBalance=0;});
+        }
+        if (save()) { renderAdminTab('finance'); showToast('Alle Daten wurden zurückgesetzt.'); }
+      } catch (error) { resetData.disabled = false; showToast(`Zurücksetzen fehlgeschlagen: ${error.message}`,true); }
+      return;
+    }
     const resetLogo = event.target.closest('[data-reset-logo]');
     if (resetLogo) { try { if (await storeTeamLogo(resetLogo.dataset.resetLogo,'')) { renderAdminTab('ebanking'); showToast('Standard-Logo wiederhergestellt.'); } } catch (error) { showToast(error.message,true); } return; }
     const printContract = event.target.closest('[data-print-contract]');
@@ -1105,17 +1167,15 @@
     if (saveProfileRole) {
       const row = saveProfileRole.closest('[data-profile-row]');
       const role = row.querySelector('[data-user-role]').value;
-      const teamId = role==='team_chief' ? row.querySelector('[data-user-team]').value : null;
+      const teamId = row.querySelector('[data-user-team]').value || null;
       saveProfileRole.disabled = true;
-      const {data: result, error} = await window.zfcSupabase.functions.invoke('admin-assign-role', {
-        body:{profileId:saveProfileRole.dataset.saveProfileRole,role,teamId}
-      });
+      const {data: result, error} = await window.zfcSupabase.rpc('admin_set_profile_role',{p_profile_id:saveProfileRole.dataset.saveProfileRole,p_role:role,p_team_id:teamId});
       if (error) {
         saveProfileRole.disabled = false;
-        showToast('Rolle konnte nicht gespeichert werden. Prüfe, ob admin-assign-role deployed ist.',true);
+        showToast(`Rolle konnte nicht gespeichert werden: ${error.message}`,true);
         return;
       }
-      adminProfiles=adminProfiles.map(profile=>profile.id===result.profile.id?result.profile:profile);
+      adminProfiles=adminProfiles.map(profile=>profile.id===result.id?{...profile,role:result.role,team_id:result.team_id}:profile);
       renderAdminTab('accounts');
       showToast('Rolle und Team wurden gespeichert.');
       return;
@@ -1274,6 +1334,10 @@
     if (print) { const invoice=data.invoices.find(item=>item.id===print.dataset.printInvoice);if(invoice)invoicePrint(invoice); }
   });
 
+  document.addEventListener('input', event => {
+    if (event.target.matches('[name="itemAmount"]')) updateInvoiceTotal(event.target.closest('[data-invoice-items]'));
+  });
+
   document.addEventListener('change', event => {
     if (event.target.matches('[data-team-picker]')) { renderTeam(event.target.value); return; }
     if (event.target.matches('[data-ebank-team]')) { adminTeamId=event.target.value; renderAdminTab('ebanking'); return; }
@@ -1285,8 +1349,6 @@
     }
     if (event.target.matches('[data-user-role]')) {
       const row = event.target.closest('[data-profile-row]');
-      const teamControl = row?.querySelector('[data-user-team]');
-      if (teamControl) teamControl.disabled = event.target.value==='admin';
       return;
     }
     if (event.target.matches('[name="gallery"]')) {
