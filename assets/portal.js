@@ -35,8 +35,8 @@
   const CONTRACT_TYPES = [['driver','Fahrervertrag'],['team_principal','Teamchef-Vertrag'],['insurance','Insurance-Vertrag'],['sponsoring','Sponsoring-Vertrag'],['hq','HQ-Vertrag'],['driver_purchase','Fahrerkauf-Vertrag']];
   const contractTypeName = type => ({...Object.fromEntries(CONTRACT_TYPES),vehicle:'Fahrzeug-Vertrag'})[type] || type;
   const contractTypeOptions = (selected='') => CONTRACT_TYPES.map(([key,label])=>`<option value="${key}" ${key===selected?'selected':''}>${label}</option>`).join('');
-  const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[]});
-  let data, currentTeamId, currentAdminTab='overview', adminProfiles=[], adminTeamId=teams[0].id, statementMonth=new Date().toISOString().slice(0,7);
+  const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[]});
+  let data, currentTeamId, currentTeamTab='account', currentAdminTab='overview', adminProfiles=[], adminTeamId=teams[0].id, statementMonth=new Date().toISOString().slice(0,7);
 
   function readImage(file) {
     const readAsDataUrl = blob => new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});
@@ -70,7 +70,7 @@
 
   function save() {
     try {
-      const shared = window.zfcSupabase ? {offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[]} : {};
+      const shared = window.zfcSupabase ? {offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[]} : {};
       if (window.zfcSupabase) shared.teamLogos={};
       localStorage.setItem(STORAGE_KEY, JSON.stringify({...data,...shared}));
       return true;
@@ -124,6 +124,54 @@
     return initial + data.bookings.filter(entry => entry.teamId === teamId).reduce((total, entry) => total + (entry.direction === 'credit' ? entry.amount : -entry.amount), 0);
   }
 
+  const CARD_DESIGNS = {basic:'Basis Grün',sunset:'Sunset',aurora:'Aurora',carbon:'Carbon',gold:'Gold',ocean:'Ocean'};
+  const MAX_CARDS_PER_TEAM = 3;
+
+  function ensureLocalBasicCards() {
+    teams.forEach(team=>{
+      if (!data.cards.some(card=>card.teamId===team.id && card.kind==='basic')) {
+        data.cards.push({id:`basic-${team.id}`,teamId:team.id,kind:'basic',label:'Basiskarte',design:'basic',limit:0,createdAt:new Date(0).toISOString()});
+      }
+    });
+  }
+
+  function teamCards(teamId) {
+    return data.cards.filter(card=>card.teamId===teamId).sort((a,b)=>(a.kind==='basic'?-1:b.kind==='basic'?1:0)||new Date(a.createdAt)-new Date(b.createdAt));
+  }
+  const basicCard = teamId => teamCards(teamId).find(card=>card.kind==='basic');
+  const entryCardId = entry => entry.cardId || basicCard(entry.teamId)?.id;
+
+  // Basiskarte trägt das Startkapital des Teams; Buchungen ohne Karte gehören zur Basiskarte.
+  function cardBalance(card) {
+    const opening = card.kind==='basic' ? (teams.find(team=>team.id===card.teamId)?.initialBalance || 0) : 0;
+    return opening + data.bookings.filter(entry=>entry.teamId===card.teamId && entryCardId(entry)===card.id)
+      .reduce((total,entry)=>total + (entry.direction==='credit' ? entry.amount : -entry.amount), 0);
+  }
+
+  function cardHeld(card) {
+    return data.invoices.filter(invoice=>invoice.teamId===card.teamId && invoice.status==='payment_requested' && (invoice.cardId||basicCard(invoice.teamId)?.id)===card.id)
+      .reduce((total,invoice)=>total+invoice.amount,0);
+  }
+
+  const cardAvailable = card => cardBalance(card) + card.limit - cardHeld(card);
+
+  function cardNumber(card) {
+    const digits = [...card.id.replace(/[^0-9a-f]/gi,'').padEnd(8,'0')].map(char=>parseInt(char,16)%10).join('');
+    return `5${digits.slice(0,3)} ${digits.slice(3,7)} •••• ${digits.slice(-4)}`;
+  }
+
+  function cardVisual(card, {selected=false, attr=''}={}) {
+    const team = teams.find(entry=>entry.id===card.teamId);
+    const balanceValue = cardBalance(card);
+    return `<article class="vcard vcard-${escapeHtml(card.design)} ${selected?'selected':''}" ${attr}>
+      <div class="vcard-top"><span>${escapeHtml(card.label||'Karte')}</span><span class="vcard-brand">${card.kind==='basic'?'BASIS':'CREDIT'}</span></div>
+      <div class="vcard-chip"></div>
+      <div class="vcard-number">${cardNumber(card)}</div>
+      <div class="vcard-balance">${money(balanceValue)}</div>
+      <div class="vcard-bottom"><span>${escapeHtml(team?.name||'')}</span><span>${card.limit>0?`Rahmen ${money(card.limit)}`:'Kein Kredit'}</span></div>
+    </article>`;
+  }
+
   function teamOptions(selected='') {
     return teams.map(team => `<option value="${team.id}" ${team.id===selected?'selected':''}>${team.name}</option>`).join('');
   }
@@ -140,12 +188,12 @@
 
   function layout(active, content, title='Admin Control Center') {
     const navigation = [
-      ['overview','Übersicht'],['content','Startseite & Galaxy'],['offers','Angebote'],['orders','Kaufanfragen'],['ebanking','Team-E-Banking'],['finance','Teamkonten & Rechnungen'],['contracts','Verträge'],['accounts','Benutzer & Rollen'],['tickets','Probleme & Meldungen']
+      ['overview','Übersicht'],['content','Startseite & Galaxy'],['offers','Angebote'],['orders','Kaufanfragen'],['ebanking','Team-E-Banking'],['finance','Teamkonten & Rechnungen'],['contracts','Verträge'],['cards','Kreditkarten'],['accounts','Benutzer & Rollen'],['tickets','Probleme & Meldungen']
     ];
     return `<div class="portal-shell"><aside class="portal-sidebar">
       <a class="portal-brand" href="../index.html"><span class="portal-brand-mark">Z</span><span><strong>ZFC</strong><small>TEAM MANAGEMENT</small></span></a>
       <div class="portal-label">Arbeitsbereich</div><nav class="portal-nav" aria-label="Admin Navigation">${navigation.map(([key,label])=>`<button type="button" data-admin-tab="${key}" class="${active===key?'active':''}">${label}</button>`).join('')}</nav>
-      <div class="portal-side-note">Admin Control Center<br>${window.zfcProfile?.team_id?`<a href="../team/index.html">Mein Team-Workspace →</a><br>`:''}<a href="../index.html">← Zur öffentlichen Website</a></div>
+      <div class="portal-side-note">Admin Control Center<br><a href="../index.html">← Zur öffentlichen Website</a></div>
     </aside><main class="portal-main"><div class="portal-topbar"><div><strong>${escapeHtml(title)}</strong><br><small>Verwaltung · Saison 2026</small></div><div class="portal-actions">${window.zfcSupabase?'':'<span class="portal-badge pending">Lokale Demo</span>'}<button class="portal-button" type="button" data-sign-out>Abmelden</button></div></div>${content}</main><dialog class="portal-dialog" id="record-editor"></dialog><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
 
@@ -214,8 +262,8 @@
     const all = data.bookings.filter(entry=>entry.teamId===teamId);
     const opening = (teams.find(team=>team.id===teamId)?.initialBalance||0) + all.filter(entry=>new Date(entry.createdAt)<start).reduce((total,entry)=>total+effect(entry),0);
     const entries = all.filter(entry=>{const created=new Date(entry.createdAt);return created>=start && created<end;}).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
-    const income = entries.filter(entry=>entry.direction==='credit').reduce((total,entry)=>total+entry.amount,0);
-    const expenses = entries.filter(entry=>entry.direction==='debit').reduce((total,entry)=>total+entry.amount,0);
+    const income = entries.filter(entry=>!entry.transferId && entry.direction==='credit').reduce((total,entry)=>total+entry.amount,0);
+    const expenses = entries.filter(entry=>!entry.transferId && entry.direction==='debit').reduce((total,entry)=>total+entry.amount,0);
     const invoices = data.invoices.filter(invoice=>invoice.teamId===teamId && new Date(invoice.createdAt)>=start && new Date(invoice.createdAt)<end);
     const openInvoices = data.invoices.filter(invoice=>invoice.teamId===teamId && ['open','payment_requested'].includes(invoice.status));
     return {start,end,opening,entries,income,expenses,closing:opening+income-expenses,invoices,openInvoices};
@@ -352,7 +400,7 @@
           <div class="portal-actions"><button class="portal-button">Buchung erfassen</button></div>
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-edit-record="invoice" data-record-id="${invoice.id}">Bearbeiten</button><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2>${window.zfcSupabase?'<div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-reset-data style="border-color:#e51e2a;color:#e51e2a">Daten zurücksetzen</button></div>':''}<div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>`;
     } else if (tab==='contracts') {
       content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen.')}
@@ -383,11 +431,27 @@
         ${statementSection(team.id)}
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungen</h2><div class="portal-item-list">${teamInvoices.length?teamInvoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>`;
     } else if (tab==='accounts') {
-      content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und das Team zu. Ein Admin mit Team ist zugleich Teamchef (Doppelrolle).')}
+      content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und bei Teamchefs das Team zu.')}
         <section class="portal-card"><div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-refresh-profiles>Profile aktualisieren</button></div><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Team</th><th></th></tr></thead><tbody>
-          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team><option value="" ${profile.team_id?'':'selected'}>${profile.role==='admin'?'Kein Team (nur Admin)':'Team wählen…'}</option>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
+          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team ${profile.role==='admin'?'disabled':''}>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
         </tbody></table></div></section>
         <div class="portal-warning">Neue E-Mail-/Passwort-Konten erstellst du im Supabase Dashboard unter Authentication → Users. Nach der E-Mail-Bestätigung erscheint das Profil hier zur Rollenzuweisung.</div>`;
+    } else if (tab==='cards') {
+      const pending = data.cardRequests.filter(request=>request.status==='pending');
+      const handled = data.cardRequests.filter(request=>request.status!=='pending').slice(0,8);
+      const designOptions = (selected='sunset') => Object.entries(CARD_DESIGNS).filter(([key])=>key!=='basic').map(([key,label])=>`<option value="${key}" ${key===selected?'selected':''}>${label}</option>`).join('');
+      content = `${heading('Virtuelle Kreditkarten','Karten & Kredit-Anträge','Jedes Team besitzt eine Basiskarte und kann bis zu zwei weitere Karten per Kredit-Antrag erhalten. Der Kreditrahmen wird nur beim Erstellen festgelegt.')}
+        <section class="portal-card"><h2>Offene Kredit-Anträge (${pending.length})</h2>
+          ${pending.length?pending.map(request=>`<div class="portal-item" data-card-request-row="${escapeHtml(request.id)}" style="align-items:flex-start;flex-wrap:wrap"><div class="portal-item-copy"><strong>${escapeHtml(teamName(request.teamId))}</strong><small>Gewünschter Rahmen ${money(request.requestedLimit)} · ${date(request.createdAt)}<br>${escapeHtml(request.reason||'Keine Begründung')}</small></div>
+            <div class="portal-actions"><select class="portal-select" data-request-design style="width:auto">${designOptions(request.design)}</select><input class="portal-select" data-request-label style="width:150px" maxlength="40" placeholder="Kartenname"><input class="portal-select" data-request-limit style="width:130px" type="number" min="0" step="0.01" value="${(request.requestedLimit/100).toFixed(2)}" aria-label="Kreditrahmen in EUR"><button class="portal-button primary" type="button" data-approve-card-request="${escapeHtml(request.id)}">Karte erstellen</button><button class="portal-button" type="button" data-decline-card-request="${escapeHtml(request.id)}">Ablehnen</button></div></div>`).join(''):'<div class="portal-empty">Keine offenen Anträge.</div>'}
+          ${handled.length?`<div class="portal-muted" style="margin-top:12px">Zuletzt bearbeitet: ${handled.map(request=>`${escapeHtml(teamName(request.teamId))} ${statusBadge(request.status)}`).join(' · ')}</div>`:''}
+        </section>
+        <section class="portal-card" style="margin-top:15px"><h2>Karte direkt erstellen</h2><form class="portal-form" data-form="card-create">
+          <label>Team${teamSelect()}</label><label>Design<select name="design">${designOptions()}</select></label>
+          <label>Kartenname<input name="label" maxlength="40" placeholder="z. B. Entwicklungs-Budget"></label><label>Kreditrahmen (max. Minus) in EUR<input name="limit" type="number" min="0" step="0.01" value="0" required></label>
+          <div class="portal-actions"><button class="portal-button primary">Karte erstellen</button><span class="portal-muted">Der Kreditrahmen kann nach dem Erstellen nicht mehr geändert werden.</span></div>
+        </form></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Alle Teamkarten</h2>${teams.map(team=>{const cards=teamCards(team.id);return `<div style="margin-bottom:22px"><div class="portal-item" style="padding:6px 0"><strong>${escapeHtml(team.name)}</strong><span class="portal-badge ${cards.length>=MAX_CARDS_PER_TEAM?'good':''}">${cards.length} / ${MAX_CARDS_PER_TEAM} Karten</span></div><div class="vcard-row">${cards.map(card=>cardVisual(card)).join('')||'<div class="portal-empty">Keine Karten</div>'}</div></div>`;}).join('')}</section>`;
     } else {
       content = `${heading('Support & Betrieb','Probleme und Meldungen','Alle eingereichten Team-Anliegen zentral ansehen und ihren Bearbeitungsstand aktualisieren.')}
         <section class="portal-card"><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Meldung</th><th>Team</th><th>Erstellt</th><th>Status</th><th>Aktion</th></tr></thead><tbody>
@@ -397,37 +461,102 @@
     root.innerHTML = layout(tab,content);
   }
 
+  const CARD_COLORS = {basic:'#3f8f73',sunset:'#f08a4b',aurora:'#7a5af8',carbon:'#2c3a40',gold:'#d4a73a',ocean:'#2b9bc4'};
+
+  function chooseCard(teamId, amount) {
+    return new Promise(resolve=>{
+      const cards = teamCards(teamId);
+      const overlay = document.createElement('div');
+      overlay.className = 'eb-modal';
+      overlay.innerHTML = `<form class="eb-modal-box"><h3>Mit welcher Karte bezahlen?</h3><p class="eb-muted">Betrag: <strong>${money(amount)}</strong></p>
+        <div class="eb-choice-list">${cards.map((card,index)=>`<label class="eb-choice"><input type="radio" name="card" value="${escapeHtml(card.id)}" ${index===0?'checked':''}><span class="eb-choice-dot" style="background:${CARD_COLORS[card.design]||'#3f8f73'}"></span><span><strong>${escapeHtml(card.label)}</strong><br><small>Verfügbar ${money(cardAvailable(card))}${card.limit>0?` · inkl. Rahmen ${money(card.limit)}`:''}</small></span></label>`).join('')}</div>
+        <div class="portal-actions"><button class="portal-button primary">Weiter</button><button class="portal-button" type="button" data-cancel>Abbrechen</button></div></form>`;
+      const close = value => { overlay.remove(); resolve(value); };
+      overlay.querySelector('[data-cancel]').addEventListener('click',()=>close(null));
+      overlay.querySelector('form').addEventListener('submit',submitEvent=>{
+        submitEvent.preventDefault();
+        close(cards.find(card=>card.id===new FormData(submitEvent.target).get('card'))||null);
+      });
+      document.body.append(overlay);
+    });
+  }
+
+  function expenseDonut(selected, cards) {
+    const spent = cards.map(card=>({card,total:data.bookings.filter(entry=>entry.teamId===selected.id && !entry.transferId && entry.direction==='debit' && entryCardId(entry)===card.id).reduce((sum,entry)=>sum+entry.amount,0)}));
+    const total = spent.reduce((sum,item)=>sum+item.total,0);
+    let offset = 0;
+    const stops = total ? spent.filter(item=>item.total>0).map(item=>{const start=offset;offset+=item.total/total*100;return `${CARD_COLORS[item.card.design]||'#3f8f73'} ${start.toFixed(2)}% ${offset.toFixed(2)}%`;}).join(',') : '#d9e4de 0 100%';
+    return `<div class="eb-donut-wrap"><div class="eb-donut" style="background:conic-gradient(${stops})"><div class="eb-donut-hole"><small>Ausgaben</small><strong>${money(total)}</strong></div></div>
+      <ul class="eb-legend">${spent.map(item=>`<li><span class="eb-legend-dot" style="background:${CARD_COLORS[item.card.design]||'#3f8f73'}"></span><span>${escapeHtml(item.card.label)}</span><b>${money(item.total)}</b></li>`).join('')}</ul></div>`;
+  }
+
   function renderTeam(teamId) {
     const root = $('#portal-root');
     if (!root) return;
     const selected = teams.find(team=>team.id===(window.zfcProfile?.role==='team_chief'?window.zfcProfile.team_id:teamId)) || teams[0];
     currentTeamId = selected.id;
+    const cards = teamCards(selected.id);
+    const base = cards.find(card=>card.kind==='basic');
     const allInvoices = data.invoices.filter(invoice=>invoice.teamId===selected.id);
-    const invoices = allInvoices.filter(invoice=>invoice.status!=='payment_requested');
+    const openInvoices = allInvoices.filter(invoice=>invoice.status==='open');
     const held = heldAmount(selected.id);
     const contracts = data.contracts.filter(contract=>contract.teamId===selected.id);
-    const bookings = data.bookings.filter(entry=>entry.teamId===selected.id).slice().reverse();
+    const bookings = data.bookings.filter(entry=>entry.teamId===selected.id).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
     const tickets = data.tickets.filter(ticket=>ticket.teamId===selected.id);
-    root.innerHTML = `<div class="portal-shell"><aside class="portal-sidebar">
-      <a class="portal-brand" href="../index.html"><span class="portal-team-mark" style="--team-color:${selected.color}">${selected.mark}</span><span><strong>${escapeHtml(selected.name)}</strong><small>TEAMKONTO · SAISON 2026</small></span></a>
-      <div class="portal-label">Team Workspace</div><nav class="portal-nav"><a href="#konto">Kontenübersicht</a><a href="#rechnungen">Rechnungen</a><a href="#vertraege">Verträge</a><a href="#meldungen">Probleme melden</a><a href="../sponsors/shop.html">Sponsoren-Shop</a></nav>
-      <div class="portal-side-note"><a href="../index.html">← Zur öffentlichen Website</a><br><button class="portal-button" type="button" data-sign-out>Abmelden</button></div>
-    </aside><main class="portal-main"><div class="portal-topbar"><div><strong>Team-E-Banking</strong><br><small>Willkommen im digitalen Teamkonto</small></div><div class="portal-actions">${window.zfcSupabase?'<button class="portal-button" type="button" data-sign-out>Abmelden</button>':`<label class="portal-label-text">Demo-Team auswählen <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></div>
-      <section id="konto">${heading('Teamkonto','Finanzübersicht',`Team-Logo und Kontobewegungen für ${escapeHtml(selected.name)}.`)}
-        <div class="portal-grid"><article class="portal-card portal-balance"><div class="portal-label-text">Verfügbarer Kontostand</div><div class="portal-stat">${money(availableBalance(selected.id))}</div><div class="portal-label-text">Demo-Buchungen in EUR</div>${held?`<div class="pay-hold"><span>On hold</span><strong>${money(held)}</strong></div>`:''}</article><article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${allInvoices.filter(invoice=>invoice.status==='open').length}</div><div class="portal-label-text">Fällig</div></article><article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${contracts.length}</div><div class="portal-label-text">Entwürfe und Vereinbarungen</div></article><article class="portal-card"><div class="portal-label-text">Team-Logo</div><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(selected))}" alt="${escapeHtml(selected.name)}-Logo"><strong>${escapeHtml(selected.name)}</strong></div><div class="portal-label-text">${data.teamLogos[selected.id]?'Individuelles Logo':'Eigenständiges Team-Badge'}</div></article></div>
-        <div class="portal-grid two" style="margin-top:15px"><section class="portal-card" id="rechnungen"><h2>Rechnungen</h2><div class="portal-item-list">${invoices.length?invoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF / Drucken</button>${invoice.status==='open'?`<button class="portal-button primary" data-request-payment="${invoice.id}">Jetzt bezahlen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>
-        <section class="portal-card" id="vertraege"><h2>Verträge</h2><div class="portal-item-list">${contracts.length?contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section></div>
-        ${statementSection(selected.id)}
-        <section class="portal-card" style="margin-top:15px"><h2>Letzte Kontobewegungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th></tr></thead><tbody>${bookings.length?bookings.slice(0,10).map(entry=>`<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td class="${entry.direction==='credit'?'portal-kicker':''}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`).join(''):'<tr><td colspan="3" class="portal-empty">Noch keine Buchungen vorhanden.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-grid two" style="margin-top:15px"><section class="portal-card" id="meldungen"><h2>Problem oder Anliegen melden</h2><form class="portal-form" data-form="support-ticket">
+    const requests = data.cardRequests.filter(request=>request.teamId===selected.id);
+    const pendingRequest = requests.find(request=>request.status==='pending');
+    const cardName = entry => cards.find(card=>card.id===entryCardId(entry))?.label || '–';
+    const tabs = [['account','Mein Konto'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
+    const tab = tabs.some(([key])=>key===currentTeamTab) ? currentTeamTab : 'account';
+    const txRow = entry => `<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td><span class="eb-pill">${escapeHtml(cardName(entry))}</span></td><td class="eb-num ${entry.direction==='credit'?'eb-plus':'eb-minus'}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`;
+    const txTable = (rows,empty='Noch keine Buchungen vorhanden.') => `<div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Karte</th><th class="eb-num">Betrag</th></tr></thead><tbody>${rows.length?rows.map(txRow).join(''):`<tr><td colspan="4" class="portal-empty">${empty}</td></tr>`}</tbody></table></div>`;
+    const designOptions = ['sunset','aurora','carbon','gold','ocean'].map(key=>`<option value="${key}">${CARD_DESIGNS[key]}</option>`).join('');
+    let panel = '';
+    if (!base) {
+      panel = '<section class="eb-card"><div class="portal-empty">Für dieses Team wurde noch keine Basiskarte gefunden. Bitte die Datenbank-Einrichtung (Schema) prüfen.</div></section>';
+    } else if (tab==='account') {
+      panel = `<div class="eb-top">
+        <section class="eb-card eb-main"><div class="eb-main-head"><div><div class="eb-muted">Hauptkonto</div><div class="eb-main-name">${escapeHtml(selected.name)} · ${escapeHtml(base.label)}</div></div><div class="eb-main-side"><small>Gesamt über alle Karten</small><strong>${money(balance(selected.id))}</strong></div></div>
+          <div class="eb-amount">${money(cardBalance(base))}</div>
+          ${held?`<div class="eb-hold">On hold: <strong>${money(held)}</strong></div>`:''}
+          <div class="portal-actions"><button class="eb-btn" type="button" data-team-tab="invoices">Rechnung bezahlen</button><button class="eb-btn ghost" type="button" data-team-tab="cards">Geld verschieben</button></div></section>
+        <aside class="eb-card eb-upcoming"><h3>Anstehende Zahlungen</h3>${openInvoices.length?`<ul class="eb-upcoming-list">${openInvoices.slice().sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,4).map(invoice=>`<li><span><strong>${escapeHtml(invoice.description)}</strong><small>fällig ${date(invoice.dueDate)}</small></span><b>${money(invoice.amount)}</b></li>`).join('')}</ul>`:'<p class="eb-upcoming-empty">Keine offenen Rechnungen.</p>'}</aside>
+      </div>
+      <div class="eb-strip">${cards.map(card=>cardVisual(card,{attr:'data-team-tab="cards" role="button" tabindex="0"'})).join('')}${cards.length<MAX_CARDS_PER_TEAM?`<button class="vcard vcard-add" type="button" data-team-tab="cards"><span>＋</span>Kredit beantragen</button>`:''}</div>
+      <div class="eb-bottom">
+        <section class="eb-card"><div class="eb-row-between"><h3>Letzte Transaktionen</h3><button class="eb-link" type="button" data-team-tab="transactions">Alle ansehen</button></div>${txTable(bookings.slice(0,6))}</section>
+        <section class="eb-card"><h3>Ausgaben nach Karte</h3>${expenseDonut(selected,cards)}</section>
+      </div>`;
+    } else if (tab==='transactions') {
+      panel = `${statementSection(selected.id)}<section class="eb-card" style="margin-top:16px"><h3>Alle Kontobewegungen</h3>${txTable(bookings)}</section>`;
+    } else if (tab==='cards') {
+      panel = `<div class="eb-cards-grid">${cards.map(card=>`<section class="eb-card eb-card-detail">${cardVisual(card)}<dl class="eb-facts"><div><dt>Saldo</dt><dd>${money(cardBalance(card))}</dd></div><div><dt>Kreditrahmen</dt><dd>${money(card.limit)}</dd></div><div><dt>On hold</dt><dd>${money(cardHeld(card))}</dd></div><div><dt>Verfügbar</dt><dd>${money(cardAvailable(card))}</dd></div></dl></section>`).join('')}</div>
+        <div class="eb-two">
+          <section class="eb-card"><h3>Geld zwischen Karten verschieben</h3>${cards.length>1?`<form class="portal-form" data-form="card-transfer"><label>Von Karte<select name="fromCard">${cards.map(card=>`<option value="${escapeHtml(card.id)}">${escapeHtml(card.label)} (${money(cardAvailable(card))})</option>`).join('')}</select></label><label>Auf Karte<select name="toCard">${cards.slice().reverse().map(card=>`<option value="${escapeHtml(card.id)}">${escapeHtml(card.label)}</option>`).join('')}</select></label><label class="full">Betrag in EUR<input name="amount" type="number" min="0.01" step="0.01" required></label><div class="portal-actions"><button class="eb-btn">Verschieben</button></div></form><p class="eb-muted">Auszahlungen landen immer auf der Basiskarte. Von dort kannst du Guthaben beliebig oft auf deine anderen Karten verschieben.</p>`:'<p class="eb-muted">Du hast aktuell nur die Basiskarte. Sobald eine weitere Karte erstellt wurde, kannst du hier Guthaben verschieben.</p>'}</section>
+          <section class="eb-card"><h3>Kredit beantragen</h3>${cards.length>=MAX_CARDS_PER_TEAM?'<p class="eb-muted">Dein Team besitzt bereits die maximale Anzahl von drei Karten.</p>':pendingRequest?`<p class="eb-muted">Dein Antrag vom ${date(pendingRequest.createdAt)} (${money(pendingRequest.requestedLimit)}) wird von der Verwaltung geprüft. ${statusBadge('pending')}</p>`:`<form class="portal-form" data-form="card-request"><input type="hidden" name="teamId" value="${selected.id}"><label>Wunschdesign<select name="design">${designOptions}</select></label><label>Gewünschter Kreditrahmen in EUR<input name="limit" type="number" min="0" step="0.01" value="0"></label><label class="full">Begründung<textarea name="reason" maxlength="500" placeholder="Wofür benötigt ihr die zusätzliche Karte?"></textarea></label><div class="portal-actions"><button class="eb-btn">Antrag senden</button></div></form><p class="eb-muted">Die Verwaltung erstellt die Karte und legt den endgültigen Kreditrahmen fest. Dieser kann danach nicht mehr geändert werden.</p>`}
+          ${requests.filter(request=>request.status!=='pending').slice(0,3).map(request=>`<p class="eb-muted">Antrag vom ${date(request.createdAt)}: ${statusBadge(request.status)}</p>`).join('')}</section>
+        </div>`;
+    } else if (tab==='invoices') {
+      panel = `<section class="eb-card" id="rechnungen"><h3>Rechnungen</h3><div class="portal-item-list">${allInvoices.length?allInvoices.slice().reverse().map(invoice=>{const payCard=cards.find(card=>card.id===invoice.cardId);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}${invoice.status==='payment_requested'&&payCard?` · on hold auf ${escapeHtml(payCard.label)}`:''}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF / Drucken</button>${invoice.status==='open'?`<button class="eb-btn" data-request-payment="${invoice.id}">Jetzt bezahlen</button>`:''}</div></div>`;}).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>`;
+    } else if (tab==='contracts') {
+      panel = `<section class="eb-card" id="vertraege"><h3>Verträge</h3><div class="portal-item-list">${contracts.length?contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="eb-btn" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section>`;
+    } else {
+      panel = `<div class="eb-two"><section class="eb-card" id="meldungen"><h3>Problem oder Anliegen melden</h3><form class="portal-form" data-form="support-ticket">
           <input type="hidden" name="teamId" value="${selected.id}">
           <label>Kategorie<select name="category"><option>Finanzen</option><option>Vertrag</option><option>Website</option><option>Teamkonto</option><option>Sonstiges</option></select></label>
           <label>Titel<input name="subject" maxlength="100" required></label>
           <label class="full">Beschreibung<textarea name="details" maxlength="1000" required></textarea></label>
-          <div class="portal-actions"><button class="portal-button primary">Meldung einreichen</button></div>
-        </form></section><section class="portal-card"><h2>Deine Meldungen</h2><div class="portal-item-list">${tickets.length?tickets.slice().reverse().map(ticket=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(ticket.subject)}</strong><small>${escapeHtml(ticket.category)} · ${date(ticket.createdAt)}<br>${escapeHtml(ticket.details)}</small></div>${statusBadge(ticket.status)}</div>`).join(''):'<div class="portal-empty">Du hast noch keine Meldungen eingereicht.</div>'}</div></section></section>
-        <div class="portal-warning">${window.zfcSupabase?'Rechnungen und Kontobuchungen werden synchronisiert. Vertrags- und Meldungsfunktionen sind noch lokal; tatsächliche Überweisungen erfolgen außerhalb des Portals.':'Demo-Modus: Dieses Konto ist nicht geschützt. Änderungen und Daten gelten nur für diesen Browser und sind keine echten Banktransaktionen oder rechtsgültigen Signaturen.'}</div>
-      </section></main><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
+          <div class="portal-actions"><button class="eb-btn">Meldung einreichen</button></div>
+        </form></section><section class="eb-card"><h3>Deine Meldungen</h3><div class="portal-item-list">${tickets.length?tickets.slice().reverse().map(ticket=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(ticket.subject)}</strong><small>${escapeHtml(ticket.category)} · ${date(ticket.createdAt)}<br>${escapeHtml(ticket.details)}</small></div>${statusBadge(ticket.status)}</div>`).join(''):'<div class="portal-empty">Du hast noch keine Meldungen eingereicht.</div>'}</div></section></div>`;
+    }
+    document.body.classList.add('eb-active');
+    root.innerHTML = `<div class="eb"><div class="eb-frame">
+      <header class="eb-head"><a class="eb-brand" href="../index.html"><img src="${escapeHtml(teamLogo(selected))}" alt="${escapeHtml(selected.name)}-Logo"><span>${escapeHtml(selected.name)}</span></a>
+        <nav class="eb-tabs" aria-label="Team-E-Banking">${tabs.map(([key,label])=>`<button type="button" class="${tab===key?'active':''}" data-team-tab="${key}">${label}</button>`).join('')}<a href="../sponsors/shop.html">Sponsoren-Shop</a></nav>
+        <div class="eb-head-actions">${window.zfcSupabase?'<button class="eb-btn ghost" type="button" data-sign-out>Abmelden</button>':`<label class="eb-muted">Demo-Team <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></header>
+      <main class="eb-body">${panel}
+        <div class="eb-note">${window.zfcSupabase?'Rechnungen, Karten und Kontobuchungen werden synchronisiert. Tatsächliche Überweisungen erfolgen außerhalb des Portals.':'Demo-Modus: Dieses Konto ist nicht geschützt. Änderungen und Daten gelten nur für diesen Browser und sind keine echten Banktransaktionen oder rechtsgültigen Signaturen.'}</div></main>
+    </div><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
 
   function renderPublicOffers() {
@@ -617,12 +746,13 @@
       if (save()) { renderAdminTab('finance'); showToast(`Rechnung ${invoice.number} erstellt.`); }
     } else if (form.dataset.form==='booking') {
       const amount = cents(fields.amount);
-      if (!window.zfcSupabase && fields.direction==='debit' && balance(fields.teamId)<amount) throw new Error('Das Teamkonto hat dafür nicht genügend Guthaben.');
-      let booking = {id:uid(),teamId:fields.teamId,direction:fields.direction,amount,note:fields.note.trim(),createdAt:new Date().toISOString()};
+      const bookingCard = basicCard(fields.teamId);
+      if (!window.zfcSupabase && fields.direction==='debit' && (!bookingCard || cardBalance(bookingCard)+bookingCard.limit<amount)) throw new Error('Die Basiskarte hat dafür nicht genügend Guthaben.');
+      let booking = {id:uid(),teamId:fields.teamId,cardId:bookingCard?.id||null,direction:fields.direction,amount,note:fields.note.trim(),createdAt:new Date().toISOString()};
       if (window.zfcSupabase) {
         const {data: row,error} = await window.zfcSupabase.from('account_entries').insert({team_id:fields.teamId,direction:fields.direction,amount_cents:amount,description:fields.note.trim(),created_by:window.zfcProfile.id}).select('*').single();
         if (error) throw new Error('Buchung fehlgeschlagen. Bitte Kontostand und Angaben prüfen.');
-        booking={id:row.id,teamId:row.team_id,direction:row.direction,amount:Number(row.amount_cents),note:row.description,createdAt:row.created_at};
+        booking=mapEntry(row);
       }
       data.bookings.unshift(booking);
       if (save()) { renderAdminTab('finance'); showToast('Buchung erfasst.'); }
@@ -644,6 +774,48 @@
       }
       data.tickets.push(ticket);
       if (save()) { renderTeam(fields.teamId); showToast('Meldung wurde eingereicht.'); }
+    } else if (form.dataset.form==='card-create') {
+      const teamId = fields.teamId;
+      if (teamCards(teamId).length>=MAX_CARDS_PER_TEAM) throw new Error('Dieses Team besitzt bereits drei Karten.');
+      const limit = nonNegativeCents(fields.limit||0);
+      let card = {id:uid(),teamId,kind:'extra',label:(fields.label||'').trim()||'Kreditkarte',design:fields.design,limit,createdAt:new Date().toISOString()};
+      if (window.zfcSupabase) {
+        const {data:row,error} = await window.zfcSupabase.from('team_cards').insert({team_id:teamId,kind:'extra',label:card.label,design:card.design,credit_limit_cents:limit,created_by:window.zfcProfile.id}).select('*').single();
+        if (error) throw new Error(`Karte konnte nicht erstellt werden: ${error.message}`);
+        card = mapCard(row);
+      }
+      data.cards.push(card);
+      if (save()) { renderAdminTab('cards'); showToast(`Karte für ${teamName(teamId)} erstellt.`); }
+    } else if (form.dataset.form==='card-request') {
+      const teamId = window.zfcProfile?.role==='team_chief' ? window.zfcProfile.team_id : fields.teamId;
+      if (teamCards(teamId).length>=MAX_CARDS_PER_TEAM) throw new Error('Dein Team besitzt bereits drei Karten.');
+      if (data.cardRequests.some(item=>item.teamId===teamId && item.status==='pending')) throw new Error('Es liegt bereits ein offener Kredit-Antrag vor.');
+      const requestedLimit = nonNegativeCents(fields.limit||0);
+      let request = {id:uid(),teamId,design:fields.design,requestedLimit,reason:(fields.reason||'').trim(),status:'pending',cardId:null,createdAt:new Date().toISOString()};
+      if (window.zfcSupabase) {
+        const {data:row,error} = await window.zfcSupabase.from('card_requests').insert({team_id:teamId,design:request.design,requested_limit_cents:requestedLimit,reason:request.reason,created_by:window.zfcProfile.id}).select('*').single();
+        if (error) throw new Error(`Antrag konnte nicht gesendet werden: ${error.message}`);
+        request = mapCardRequest(row);
+      }
+      data.cardRequests.unshift(request);
+      if (save()) { renderTeam(teamId); showToast('Kredit-Antrag wurde an die Verwaltung gesendet.'); }
+    } else if (form.dataset.form==='card-transfer') {
+      const amount = cents(fields.amount);
+      const from = data.cards.find(card=>card.id===fields.fromCard);
+      const to = data.cards.find(card=>card.id===fields.toCard);
+      if (!from || !to || from.id===to.id || from.teamId!==to.teamId) throw new Error('Bitte zwei verschiedene Karten auswählen.');
+      if (cardAvailable(from)<amount) throw new Error('Auf der Quellkarte ist nicht genügend Guthaben verfügbar.');
+      if (window.zfcSupabase) {
+        const {error} = await window.zfcSupabase.rpc('transfer_between_cards',{p_from_card:from.id,p_to_card:to.id,p_amount_cents:amount});
+        if (error) throw new Error(`Umbuchung fehlgeschlagen: ${error.message}`);
+        await loadSharedRecords('team');
+      } else {
+        const transferId = uid(), createdAt = new Date().toISOString();
+        data.bookings.push({id:uid(),teamId:from.teamId,cardId:from.id,transferId,direction:'debit',amount,note:`Umbuchung auf ${to.label}`,createdAt},{id:uid(),teamId:to.teamId,cardId:to.id,transferId,direction:'credit',amount,note:`Umbuchung von ${from.label}`,createdAt});
+        save();
+      }
+      renderTeam(from.teamId);
+      showToast(`${money(amount)} von ${from.label} auf ${to.label} verschoben.`);
     } else if (form.dataset.form==='purchase') {
       const offer = data.offers.find(item=>item.id===fields.offerId);
       if (!offer) throw new Error('Dieses Angebot ist nicht mehr verfügbar.');
@@ -706,7 +878,19 @@
   }
 
   function mapInvoice(row) {
-    return {id:row.id,number:row.invoice_number,teamId:row.team_id,amount:Number(row.amount_cents),description:row.description,dueDate:row.due_date,reference:row.reference||'',orderId:row.order_id,billToName:row.bill_to_name||'',billToEmail:row.bill_to_email||'',billToCompany:row.bill_to_company||'',billToAddress:row.bill_to_address||'',status:row.status,createdAt:row.created_at};
+    return {id:row.id,number:row.invoice_number,teamId:row.team_id,amount:Number(row.amount_cents),description:row.description,dueDate:row.due_date,reference:row.reference||'',orderId:row.order_id,billToName:row.bill_to_name||'',billToEmail:row.bill_to_email||'',billToCompany:row.bill_to_company||'',billToAddress:row.bill_to_address||'',status:row.status,cardId:row.card_id||null,createdAt:row.created_at};
+  }
+
+  function mapEntry(row) {
+    return {id:row.id,teamId:row.team_id,cardId:row.card_id,transferId:row.transfer_id||null,direction:row.direction,amount:Number(row.amount_cents),note:row.description,createdAt:row.created_at};
+  }
+
+  function mapCard(row) {
+    return {id:row.id,teamId:row.team_id,kind:row.kind,label:row.label,design:row.design,limit:Number(row.credit_limit_cents),createdAt:row.created_at};
+  }
+
+  function mapCardRequest(row) {
+    return {id:row.id,teamId:row.team_id,design:row.design,requestedLimit:Number(row.requested_limit_cents),reason:row.reason,status:row.status,cardId:row.card_id,createdAt:row.created_at};
   }
 
   function mapContract(row) {
@@ -722,7 +906,7 @@
     const requestedTeamId = new URLSearchParams(location.search).get('team');
     const selectedTeamId = window.zfcProfile?.role==='team_chief'
       ? window.zfcProfile.team_id
-      : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:(window.zfcProfile?.team_id||teams[0].id));
+      : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:teams[0].id);
     const {data: homeRow} = await window.zfcSupabase.from('site_settings').select('value').eq('key','homepage').maybeSingle();
     if (homeRow?.value && homeRow.value.title && homeRow.value.title!=='Built to race.') {
       const {title,claim,intro,image}=homeRow.value;
@@ -733,11 +917,21 @@
       if (teamError) throw teamError;
       teamRows.forEach(row=>{const team=teams.find(item=>item.id===row.id);if(team){team.initialBalance=Number(row.initial_balance_cents);if(row.logo_path)data.teamLogos[row.id]=row.logo_path;else delete data.teamLogos[row.id];}});
       let entriesQuery = window.zfcSupabase.from('account_entries').select('*').order('created_at',{ascending:false});
+      if (page==='admin' || page==='team') {
+        const [{data: cardRows, error: cardsError}, {data: requestRows, error: requestsError}] = await Promise.all([
+          window.zfcSupabase.from('team_cards').select('*').order('created_at',{ascending:true}),
+          window.zfcSupabase.from('card_requests').select('*').order('created_at',{ascending:false})
+        ]);
+        if (cardsError) throw cardsError;
+        if (requestsError) throw requestsError;
+        data.cards = cardRows.map(mapCard);
+        data.cardRequests = requestRows.map(mapCardRequest);
+      }
       if (page==='team') entriesQuery=entriesQuery.eq('team_id',selectedTeamId);
       if (page==='admin' || page==='team') {
         const {data: entryRows,error: entriesError}=await entriesQuery;
         if (entriesError) throw entriesError;
-        data.bookings=entryRows.map(row=>({id:row.id,teamId:row.team_id,direction:row.direction,amount:Number(row.amount_cents),note:row.description,createdAt:row.created_at}));
+        data.bookings=entryRows.map(mapEntry);
       }
     }
     let offersQuery = window.zfcSupabase.from('sponsor_offers').select('*');
@@ -785,6 +979,9 @@
     if (window.zfcSupabase && page && !auth) return;
     try {
       data = load();
+      data.cards = Array.isArray(data.cards) ? data.cards : [];
+      data.cardRequests = Array.isArray(data.cardRequests) ? data.cardRequests : [];
+      if (!window.zfcSupabase) ensureLocalBasicCards();
       if(data.home.title==='Built to race.' && data.home.claim==='Made to rise.'){
         Object.assign(data.home,{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.'});
       }
@@ -792,6 +989,7 @@
       await loadSharedRecords(page);
     } catch (error) {
       if (root) root.innerHTML = `<main class="portal-main"><div class="portal-warning">${escapeHtml(error.message)}</div></main>`;
+      else document.querySelectorAll('[data-public-offers]').forEach(el=>{el.innerHTML=`<div class="portal-warning">Angebote konnten nicht geladen werden: ${escapeHtml(error.message)}</div>`;});
       return;
     }
     applyHome();
@@ -803,11 +1001,11 @@
     document.querySelectorAll('#purchase-dialog select[name="teamId"]').forEach(select=>{select.innerHTML=teamOptions();});
     renderPublicOffers();
     if (page==='admin') renderAdminTab();
-    if (page==='team') renderTeam(window.zfcProfile?.role==='team_chief' ? window.zfcProfile.team_id : (new URLSearchParams(location.search).get('team') || window.zfcProfile?.team_id || teams[0].id));
+    if (page==='team') renderTeam(window.zfcProfile?.team_id || new URLSearchParams(location.search).get('team') || teams[0].id);
     startRealtime(page);
   }
 
-  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings'];
+  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings','team_cards','card_requests'];
 
   function startRealtime(page) {
     const client = window.zfcSupabase;
@@ -816,7 +1014,7 @@
     const userIsEditing = () => document.querySelector('dialog[open]') ||
       document.activeElement?.matches?.('input,textarea,select');
     let notify = false;
-    const snapshot = () => JSON.stringify([data.offers,data.invoices,data.contracts,data.bookings,data.tickets,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
+    const snapshot = () => JSON.stringify([data.offers,data.invoices,data.contracts,data.bookings,data.tickets,data.cards,data.cardRequests,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
     const refresh = async () => {
       if (busy) { again = true; return; }
       if (userIsEditing()) { timer = setTimeout(refresh, 2000); return; }
@@ -903,35 +1101,21 @@
       saveCapital.disabled = false;
       return;
     }
-    const resetData = event.target.closest('[data-reset-data]');
-    if (resetData) {
-      if (!confirm('Alle Rechnungen, Buchungen, Kaufanfragen, Verträge und Meldungen werden endgültig gelöscht und alle Teamkonten auf 0 gesetzt. Fortfahren?')) return;
-      resetData.disabled = true;
-      const {error} = await window.zfcSupabase.rpc('admin_reset_data');
-      resetData.disabled = false;
-      if (error) { showToast(`Zurücksetzen fehlgeschlagen: ${error.message}`,true); return; }
-      teams.forEach(team=>{team.initialBalance=0;});
-      Object.assign(data,{orders:[],invoices:[],contracts:[],bookings:[],tickets:[]});
-      renderAdminTab('ebanking');
-      showToast('Alle Daten wurden zurückgesetzt, Konten stehen auf 0.');
-      return;
-    }
     const saveProfileRole = event.target.closest('[data-save-profile-role]');
     if (saveProfileRole) {
       const row = saveProfileRole.closest('[data-profile-row]');
       const role = row.querySelector('[data-user-role]').value;
-      const teamId = row.querySelector('[data-user-team]').value || null;
-      if (role==='team_chief' && !teamId) { showToast('Bitte ein Team für den Teamchef wählen.',true); return; }
+      const teamId = role==='team_chief' ? row.querySelector('[data-user-team]').value : null;
       saveProfileRole.disabled = true;
-      const {data: result, error} = await window.zfcSupabase.rpc('admin_set_profile_role', {
-        p_profile_id:saveProfileRole.dataset.saveProfileRole,p_role:role,p_team_id:teamId
+      const {data: result, error} = await window.zfcSupabase.functions.invoke('admin-assign-role', {
+        body:{profileId:saveProfileRole.dataset.saveProfileRole,role,teamId}
       });
       if (error) {
         saveProfileRole.disabled = false;
-        showToast(`Rolle konnte nicht gespeichert werden: ${error.message}`,true);
+        showToast('Rolle konnte nicht gespeichert werden. Prüfe, ob admin-assign-role deployed ist.',true);
         return;
       }
-      adminProfiles=adminProfiles.map(profile=>profile.id===result.id?{id:result.id,email:result.email,display_name:result.display_name,role:result.role,team_id:result.team_id}:profile);
+      adminProfiles=adminProfiles.map(profile=>profile.id===result.profile.id?result.profile:profile);
       renderAdminTab('accounts');
       showToast('Rolle und Team wurden gespeichert.');
       return;
@@ -993,19 +1177,60 @@
       }
       return;
     }
+    const teamTab = event.target.closest('[data-team-tab]');
+    if (teamTab && $('#portal-root')?.dataset.portalPage==='team') { currentTeamTab=teamTab.dataset.teamTab; renderTeam(currentTeamId); window.scrollTo({top:0}); return; }
+    const approveCard = event.target.closest('[data-approve-card-request]');
+    if (approveCard) {
+      const request = data.cardRequests.find(item=>item.id===approveCard.dataset.approveCardRequest);
+      const row = approveCard.closest('[data-card-request-row]');
+      if (!request || request.status!=='pending' || !row) return;
+      try {
+        if (teamCards(request.teamId).length>=MAX_CARDS_PER_TEAM) throw new Error('Dieses Team besitzt bereits drei Karten.');
+        const limit = nonNegativeCents(row.querySelector('[data-request-limit]').value||0);
+        const design = row.querySelector('[data-request-design]').value;
+        const label = row.querySelector('[data-request-label]').value.trim() || 'Kreditkarte';
+        approveCard.disabled = true;
+        let card = {id:uid(),teamId:request.teamId,kind:'extra',label,design,limit,createdAt:new Date().toISOString()};
+        if (window.zfcSupabase) {
+          const {data:cardId,error} = await window.zfcSupabase.rpc('approve_card_request',{p_request_id:request.id,p_design:design,p_limit_cents:limit,p_label:label});
+          if (error) throw new Error(`Karte konnte nicht erstellt werden: ${error.message}`);
+          card.id = cardId;
+        }
+        data.cards.push(card);
+        request.status='approved'; request.cardId=card.id;
+        if (save()) { renderAdminTab('cards'); showToast('Karte wurde erstellt und im E-Banking des Teams angezeigt.'); }
+      } catch (error) { approveCard.disabled=false; showToast(error.message,true); }
+      return;
+    }
+    const declineCard = event.target.closest('[data-decline-card-request]');
+    if (declineCard) {
+      const request = data.cardRequests.find(item=>item.id===declineCard.dataset.declineCardRequest);
+      if (!request || request.status!=='pending') return;
+      declineCard.disabled = true;
+      if (window.zfcSupabase) {
+        const {error} = await window.zfcSupabase.from('card_requests').update({status:'declined'}).eq('id',request.id);
+        if (error) { declineCard.disabled=false; showToast(`Antrag konnte nicht abgelehnt werden: ${error.message}`,true); return; }
+      }
+      request.status='declined';
+      if (save()) { renderAdminTab('cards'); showToast('Antrag abgelehnt.'); }
+      return;
+    }
     const payment = event.target.closest('[data-request-payment]');
     if (payment) {
       const invoice=data.invoices.find(item=>item.id===payment.dataset.requestPayment);
       if(invoice?.status==='open'){
-        const missing=invoice.amount-availableBalance(invoice.teamId);
+        const cards = teamCards(invoice.teamId);
+        const card = cards.length>1 ? await chooseCard(invoice.teamId, invoice.amount) : cards[0];
+        if (!card) return;
+        const missing=invoice.amount-cardAvailable(card);
         if (missing>0) { showCreditHint(missing); return; }
         try {
           if (window.zfcSupabase) {
-            const {error} = await window.zfcSupabase.rpc('request_invoice_payment',{p_invoice_id:invoice.id});
+            const {error} = await window.zfcSupabase.rpc('request_invoice_payment',{p_invoice_id:invoice.id,p_card_id:card.id});
             if (error) throw error;
           }
           await showPaymentAnimation();
-          invoice.status='payment_requested';save();renderTeam(currentTeamId);showToast('Zahlung on hold. Die Verwaltung bestätigt sie.');
+          invoice.status='payment_requested';invoice.cardId=card.id;save();renderTeam(currentTeamId);showToast('Zahlung on hold. Die Verwaltung bestätigt sie.');
         } catch { showToast('Zahlungsanfrage konnte nicht gesendet werden.',true); }
       }
       return;
@@ -1015,14 +1240,14 @@
       const invoice=data.invoices.find(item=>item.id===confirmPayment.dataset.confirmPayment);
       if(invoice?.status==='payment_requested'){
         try {
-          if(balance(invoice.teamId)<invoice.amount){showToast('Kontostand reicht für diese Zahlung nicht aus. Bitte zuerst eine Gutschrift buchen.',true);return;}
+          const payCard=data.cards.find(card=>card.id===invoice.cardId)||basicCard(invoice.teamId);
+          if(!payCard || cardBalance(payCard)+payCard.limit<invoice.amount){showToast('Das Guthaben der gewählten Karte reicht für diese Zahlung nicht aus. Bitte zuerst eine Gutschrift buchen.',true);return;}
           if (window.zfcSupabase) {
             const {error} = await window.zfcSupabase.from('invoices').update({status:'paid'}).eq('id',invoice.id);
             if (error) throw error;
-            data.bookings.unshift({id:uid(),teamId:invoice.teamId,direction:'debit',amount:invoice.amount,note:`Rechnung ${invoice.number}`,createdAt:new Date().toISOString()});
+            data.bookings.unshift({id:uid(),teamId:invoice.teamId,cardId:payCard.id,direction:'debit',amount:invoice.amount,note:`Rechnung ${invoice.number}`,createdAt:new Date().toISOString()});
           } else {
-            if(balance(invoice.teamId)<invoice.amount){showToast('Kontostand reicht für diese Zahlung nicht aus. Bitte zuerst eine Gutschrift buchen.',true);return;}
-            data.bookings.push({id:uid(),teamId:invoice.teamId,direction:'debit',amount:invoice.amount,note:`Rechnung ${invoice.number}`,createdAt:new Date().toISOString()});
+            data.bookings.push({id:uid(),teamId:invoice.teamId,cardId:payCard.id,direction:'debit',amount:invoice.amount,note:`Rechnung ${invoice.number}`,createdAt:new Date().toISOString()});
           }
           invoice.status='paid';save();renderAdminTab('finance');showToast('Zahlung bestätigt und Teamkonto belastet.');
         } catch { showToast('Zahlungsstatus konnte nicht aktualisiert werden.',true); }
@@ -1060,6 +1285,8 @@
     }
     if (event.target.matches('[data-user-role]')) {
       const row = event.target.closest('[data-profile-row]');
+      const teamControl = row?.querySelector('[data-user-team]');
+      if (teamControl) teamControl.disabled = event.target.value==='admin';
       return;
     }
     if (event.target.matches('[name="gallery"]')) {

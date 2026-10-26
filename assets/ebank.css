@@ -1,0 +1,91 @@
+/* Helles Team-E-Banking-Layout */
+body.eb-active{background:#dfe9e4;color:#17302a}
+.eb{--portal-bg:#dfe9e4;--portal-panel:#fff;--portal-panel-2:#eef4f0;--portal-line:#d6e2db;--portal-muted:#6a7f77;--portal-accent:#2f7a62;--portal-text:#17302a;--eb-dark:#2f5d4e;--eb-mint:#eef4f0;padding:clamp(10px,2.5vw,32px);color:var(--portal-text)}
+.eb-frame{max-width:1180px;margin:0 auto;padding:clamp(14px,2.2vw,26px);border-radius:22px;background:#f4f8f6;border:1px solid #cfdcd5;box-shadow:0 18px 50px #2f5d4e22}
+.eb-head{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding-bottom:16px}
+.eb-brand{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;color:var(--eb-dark)}
+.eb-brand img{width:40px;height:40px;object-fit:contain}
+.eb-tabs{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.eb-tabs button,.eb-tabs a{padding:8px 13px;border:0;border-radius:9px;background:none;color:#4d6a5f;font-weight:600}
+.eb-tabs button:hover,.eb-tabs a:hover{background:#e3eee8}
+.eb-tabs button.active{background:var(--eb-dark);color:#fff}
+.eb-head-actions{display:flex;align-items:center;gap:10px}
+.eb-body{display:grid;gap:18px}
+.eb-card{min-width:0;padding:20px;border-radius:16px;background:#fff;border:1px solid var(--portal-line);box-shadow:0 4px 14px #2f5d4e12;overflow-wrap:anywhere}
+.eb-card h3{margin:0 0 14px;font-size:16px;color:var(--eb-dark)}
+.eb-muted{color:var(--portal-muted);font-size:12px}
+.eb-row-between{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.eb-link{border:0;background:none;color:var(--portal-accent);font-weight:700;cursor:pointer}
+.eb-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 18px;border:1px solid var(--eb-dark);border-radius:999px;background:var(--eb-dark);color:#fff;font-weight:700;cursor:pointer}
+.eb-btn:hover{background:#244a3e}
+.eb-btn.ghost{background:transparent;color:var(--eb-dark)}
+.eb-btn.ghost:hover{background:#e3eee8}
+.eb-top{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:18px}
+.eb-main{display:flex;flex-direction:column;gap:12px}
+.eb-main-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.eb-main-name{font-size:17px;font-weight:700}
+.eb-main-side{text-align:right}
+.eb-main-side small{display:block;color:var(--portal-muted);font-size:11px}
+.eb-main-side strong{white-space:nowrap}
+.eb-amount{font-size:clamp(30px,5vw,50px);font-weight:800;letter-spacing:-.03em;white-space:nowrap;color:var(--eb-dark)}
+.eb-hold{display:inline-block;padding:4px 12px;border-radius:999px;background:#fdf1d4;color:#8a6410;font-size:12px;align-self:flex-start}
+.eb-upcoming{background:var(--eb-dark);color:#fff;border-color:var(--eb-dark)}
+.eb-upcoming h3{color:#fff}
+.eb-upcoming-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.eb-upcoming-list li{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.eb-upcoming-list small{display:block;color:#bcd6cb}
+.eb-upcoming-list b{white-space:nowrap}
+.eb-upcoming-empty{color:#bcd6cb}
+.eb-strip{display:flex;gap:18px;overflow-x:auto;padding:6px 4px 14px}
+.eb-strip .vcard{width:min(290px,78vw)}
+.eb-bottom{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:18px}
+.eb-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}
+.eb-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:18px}
+.eb-card-detail{display:grid;gap:14px;justify-items:center}
+.eb-card-detail .vcard{width:100%}
+.eb-facts{display:grid;grid-template-columns:repeat(2,minmax(min-content,1fr));gap:10px;margin:0;width:100%}
+.eb-facts div{padding:10px 12px;border-radius:10px;background:var(--eb-mint)}
+.eb-facts dt{font-size:11px;color:var(--portal-muted)}
+.eb-facts dd{margin:2px 0 0;font-weight:750;white-space:nowrap}
+.eb-pill{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--eb-mint);font-size:11px;white-space:nowrap}
+.eb-num{text-align:right;white-space:nowrap}
+.eb-plus{color:#1d7a4d;font-weight:700}
+.eb-minus{color:#b0412f;font-weight:700}
+.eb-donut-wrap{display:grid;gap:16px;justify-items:center}
+.eb-donut{width:min(180px,100%);aspect-ratio:1;border-radius:50%;display:grid;place-items:center}
+.eb-donut-hole{width:66%;aspect-ratio:1;border-radius:50%;background:#fff;display:grid;place-content:center;text-align:center;padding:6px}
+.eb-donut-hole small{color:var(--portal-muted);font-size:11px}
+.eb-donut-hole strong{font-size:clamp(12px,1.6vw,16px);white-space:nowrap}
+.eb-legend{list-style:none;margin:0;padding:0;display:grid;gap:6px;width:100%}
+.eb-legend li{display:flex;align-items:center;gap:8px}
+.eb-legend b{margin-left:auto;white-space:nowrap}
+.eb-legend-dot{width:10px;height:10px;border-radius:50%}
+.eb-note{padding:12px 14px;border-radius:10px;background:#e8f0ec;color:#4d6a5f;font-size:12px}
+.eb-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:#0a1c1599}
+.eb-modal-box{width:min(420px,100%);padding:24px;border-radius:16px;background:#fff;color:#17302a;display:grid;gap:12px}
+.eb-modal-box h3{margin:0}
+.eb-choice-list{display:grid;gap:8px}
+.eb-choice{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #d6e2db;border-radius:10px;cursor:pointer}
+.eb-choice:has(input:checked){border-color:#2f5d4e;background:#eef4f0}
+.eb-choice-dot{width:14px;height:14px;border-radius:50%;flex:none}
+
+/* Bestehende Portal-Bausteine im hellen Layout */
+.eb .portal-table th{color:#6a7f77}
+.eb .portal-table th,.eb .portal-table td{border-bottom-color:#e3ece7}
+.eb .portal-button{background:#fff;border-color:#c9d9d0;color:#17302a}
+.eb .portal-button:hover{border-color:#2f5d4e}
+.eb .portal-button.primary{background:#2f5d4e;border-color:#2f5d4e;color:#fff}
+.eb .portal-badge{color:#4d6a5f;border-color:#c9d9d0}
+.eb .portal-badge.good{color:#1d7a4d;border-color:#9bd0b5;background:#eaf7f0}
+.eb .portal-badge.pending{color:#8a6410;border-color:#ecd392;background:#fdf6e3}
+.eb .portal-form input,.eb .portal-form select,.eb .portal-form textarea,.eb .portal-select{background:#fff;border-color:#c9d9d0;color:#17302a}
+.eb .portal-form input:focus,.eb .portal-form select:focus,.eb .portal-form textarea:focus,.eb .portal-select:focus{outline:2px solid #2f7a6270}
+.eb .portal-card{background:#fff;border-color:#d6e2db;box-shadow:0 4px 14px #2f5d4e12}
+.eb .portal-card:hover{border-color:#a9c4b7;box-shadow:0 4px 14px #2f5d4e12}
+.eb .portal-stat{color:#2f5d4e}
+.eb .portal-item{border-bottom-color:#e3ece7}
+.eb .portal-toast{background:#2f5d4e;color:#fff;border-color:#2f5d4e}
+.eb .portal-kicker{color:#2f7a62}
+.eb .portal-empty{color:#6a7f77}
+
+@media(max-width:860px){.eb-top,.eb-bottom,.eb-two{grid-template-columns:1fr}.eb-main-side{text-align:left}}

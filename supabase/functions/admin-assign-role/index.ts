@@ -40,11 +40,11 @@ Deno.serve(async (request) => {
     if (typeof profileId !== "string" ||
         !["admin", "team_chief"].includes(role) ||
         (role === "team_chief" && typeof teamId !== "string") ||
-        (teamId !== null && typeof teamId !== "string")) {
+        (role === "admin" && teamId !== null)) {
       return response(400, { error: "Bitte prüfe Rolle und Teamzuweisung." });
     }
 
-    if (teamId !== null) {
+    if (role === "team_chief") {
       const { data: team, error: teamError } = await service
         .from("teams").select("id").eq("id", teamId).maybeSingle();
       if (teamError || !team) return response(400, { error: "Das ausgewählte Team wurde nicht gefunden." });
@@ -52,7 +52,7 @@ Deno.serve(async (request) => {
 
     const { data: updatedProfile, error: updateError } = await service
       .from("profiles")
-      .update({ role, team_id: teamId })
+      .update({ role, team_id: role === "team_chief" ? teamId : null })
       .eq("id", profileId)
       .select("id, email, display_name, role, team_id")
       .single();

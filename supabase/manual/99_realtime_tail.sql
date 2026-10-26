@@ -9,7 +9,7 @@ on conflict (id) do nothing;
 do $$
 declare t text;
 begin
-  foreach t in array array['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings']
+  foreach t in array array['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings','team_cards','card_requests']
   loop
     if not exists (
       select 1 from pg_publication_tables
@@ -21,5 +21,5 @@ begin
   end loop;
 end $$;
 
--- Kontrolle: muss alle 9 Tabellen anzeigen
+-- Kontrolle: muss alle 11 Tabellen anzeigen
 select tablename from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' order by 1;
