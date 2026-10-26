@@ -145,7 +145,7 @@
     return `<div class="portal-shell"><aside class="portal-sidebar">
       <a class="portal-brand" href="../index.html"><span class="portal-brand-mark">Z</span><span><strong>ZFC</strong><small>TEAM MANAGEMENT</small></span></a>
       <div class="portal-label">Arbeitsbereich</div><nav class="portal-nav" aria-label="Admin Navigation">${navigation.map(([key,label])=>`<button type="button" data-admin-tab="${key}" class="${active===key?'active':''}">${label}</button>`).join('')}</nav>
-      <div class="portal-side-note">Admin Control Center<br><a href="../index.html">← Zur öffentlichen Website</a></div>
+      <div class="portal-side-note">Admin Control Center<br>${window.zfcProfile?.team_id?`<a href="../team/index.html">Mein Team-Workspace →</a><br>`:''}<a href="../index.html">← Zur öffentlichen Website</a></div>
     </aside><main class="portal-main"><div class="portal-topbar"><div><strong>${escapeHtml(title)}</strong><br><small>Verwaltung · Saison 2026</small></div><div class="portal-actions">${window.zfcSupabase?'':'<span class="portal-badge pending">Lokale Demo</span>'}<button class="portal-button" type="button" data-sign-out>Abmelden</button></div></div>${content}</main><dialog class="portal-dialog" id="record-editor"></dialog><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
 
@@ -352,7 +352,7 @@
           <div class="portal-actions"><button class="portal-button">Buchung erfassen</button></div>
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-edit-record="invoice" data-record-id="${invoice.id}">Bearbeiten</button><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2>${window.zfcSupabase?'<div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-reset-data style="border-color:#e51e2a;color:#e51e2a">Daten zurücksetzen</button></div>':''}<div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>`;
     } else if (tab==='contracts') {
       content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen.')}
@@ -383,9 +383,9 @@
         ${statementSection(team.id)}
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungen</h2><div class="portal-item-list">${teamInvoices.length?teamInvoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>`;
     } else if (tab==='accounts') {
-      content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und bei Teamchefs das Team zu.')}
+      content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und das Team zu. Ein Admin mit Team ist zugleich Teamchef (Doppelrolle).')}
         <section class="portal-card"><div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-refresh-profiles>Profile aktualisieren</button></div><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Team</th><th></th></tr></thead><tbody>
-          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team ${profile.role==='admin'?'disabled':''}>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
+          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team><option value="" ${profile.team_id?'':'selected'}>${profile.role==='admin'?'Kein Team (nur Admin)':'Team wählen…'}</option>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
         </tbody></table></div></section>
         <div class="portal-warning">Neue E-Mail-/Passwort-Konten erstellst du im Supabase Dashboard unter Authentication → Users. Nach der E-Mail-Bestätigung erscheint das Profil hier zur Rollenzuweisung.</div>`;
     } else {
@@ -722,7 +722,7 @@
     const requestedTeamId = new URLSearchParams(location.search).get('team');
     const selectedTeamId = window.zfcProfile?.role==='team_chief'
       ? window.zfcProfile.team_id
-      : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:teams[0].id);
+      : (teams.some(team=>team.id===requestedTeamId)?requestedTeamId:(window.zfcProfile?.team_id||teams[0].id));
     const {data: homeRow} = await window.zfcSupabase.from('site_settings').select('value').eq('key','homepage').maybeSingle();
     if (homeRow?.value && homeRow.value.title && homeRow.value.title!=='Built to race.') {
       const {title,claim,intro,image}=homeRow.value;
@@ -803,7 +803,7 @@
     document.querySelectorAll('#purchase-dialog select[name="teamId"]').forEach(select=>{select.innerHTML=teamOptions();});
     renderPublicOffers();
     if (page==='admin') renderAdminTab();
-    if (page==='team') renderTeam(window.zfcProfile?.team_id || new URLSearchParams(location.search).get('team') || teams[0].id);
+    if (page==='team') renderTeam(window.zfcProfile?.role==='team_chief' ? window.zfcProfile.team_id : (new URLSearchParams(location.search).get('team') || window.zfcProfile?.team_id || teams[0].id));
     startRealtime(page);
   }
 
@@ -903,21 +903,35 @@
       saveCapital.disabled = false;
       return;
     }
+    const resetData = event.target.closest('[data-reset-data]');
+    if (resetData) {
+      if (!confirm('Alle Rechnungen, Buchungen, Kaufanfragen, Verträge und Meldungen werden endgültig gelöscht und alle Teamkonten auf 0 gesetzt. Fortfahren?')) return;
+      resetData.disabled = true;
+      const {error} = await window.zfcSupabase.rpc('admin_reset_data');
+      resetData.disabled = false;
+      if (error) { showToast(`Zurücksetzen fehlgeschlagen: ${error.message}`,true); return; }
+      teams.forEach(team=>{team.initialBalance=0;});
+      Object.assign(data,{orders:[],invoices:[],contracts:[],bookings:[],tickets:[]});
+      renderAdminTab('ebanking');
+      showToast('Alle Daten wurden zurückgesetzt, Konten stehen auf 0.');
+      return;
+    }
     const saveProfileRole = event.target.closest('[data-save-profile-role]');
     if (saveProfileRole) {
       const row = saveProfileRole.closest('[data-profile-row]');
       const role = row.querySelector('[data-user-role]').value;
-      const teamId = role==='team_chief' ? row.querySelector('[data-user-team]').value : null;
+      const teamId = row.querySelector('[data-user-team]').value || null;
+      if (role==='team_chief' && !teamId) { showToast('Bitte ein Team für den Teamchef wählen.',true); return; }
       saveProfileRole.disabled = true;
-      const {data: result, error} = await window.zfcSupabase.functions.invoke('admin-assign-role', {
-        body:{profileId:saveProfileRole.dataset.saveProfileRole,role,teamId}
+      const {data: result, error} = await window.zfcSupabase.rpc('admin_set_profile_role', {
+        p_profile_id:saveProfileRole.dataset.saveProfileRole,p_role:role,p_team_id:teamId
       });
       if (error) {
         saveProfileRole.disabled = false;
-        showToast('Rolle konnte nicht gespeichert werden. Prüfe, ob admin-assign-role deployed ist.',true);
+        showToast(`Rolle konnte nicht gespeichert werden: ${error.message}`,true);
         return;
       }
-      adminProfiles=adminProfiles.map(profile=>profile.id===result.profile.id?result.profile:profile);
+      adminProfiles=adminProfiles.map(profile=>profile.id===result.id?{id:result.id,email:result.email,display_name:result.display_name,role:result.role,team_id:result.team_id}:profile);
       renderAdminTab('accounts');
       showToast('Rolle und Team wurden gespeichert.');
       return;
@@ -1046,8 +1060,6 @@
     }
     if (event.target.matches('[data-user-role]')) {
       const row = event.target.closest('[data-profile-row]');
-      const teamControl = row?.querySelector('[data-user-team]');
-      if (teamControl) teamControl.disabled = event.target.value==='admin';
       return;
     }
     if (event.target.matches('[name="gallery"]')) {
