@@ -1,3 +1,6 @@
+-- Konzern (and dual-role admins) carry a team, which the original check constraint forbids.
+alter table public.profiles drop constraint if exists profiles_team_role_check;
+
 -- profiles.team_id stays the *active* team, so every existing RLS policy (current_team_id()) keeps working.
 create table if not exists public.konzern_teams (
   profile_id uuid not null references public.profiles (id) on delete cascade,
@@ -39,9 +42,9 @@ begin
   end if;
 
   update public.profiles
-  set role = 'konzern',
-      team_id = case when team_id in (p_team_a, p_team_b) then team_id else p_team_a end
-  where id = p_profile_id
+  set role = 'konzern'::public.app_role,
+      team_id = case when profiles.team_id in (p_team_a, p_team_b) then profiles.team_id else p_team_a end
+  where profiles.id = p_profile_id
   returning * into result;
 
   if not found then

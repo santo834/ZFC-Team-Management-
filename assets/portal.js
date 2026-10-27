@@ -571,7 +571,7 @@
     root.innerHTML = `<div class="eb"><div class="eb-frame">
       <header class="eb-head"><a class="eb-brand" href="../index.html"><img src="${escapeHtml(teamLogo(selected))}" alt="${escapeHtml(selected.name)}-Logo"><span>${escapeHtml(selected.name)}</span></a>
         <nav class="eb-tabs" aria-label="Team-E-Banking">${tabs.map(([key,label])=>`<button type="button" class="${tab===key?'active':''}" data-team-tab="${key}">${label}</button>`).join('')}<a href="../sponsors/shop.html">Sponsoren-Shop</a></nav>
-        <div class="eb-head-actions">${window.zfcProfile?.role==='konzern'&&(window.zfcProfile.konzern_teams||[]).length===2?`<label class="eb-muted">Konzern <select class="portal-select" data-konzern-switch aria-label="Team-E-Banking wechseln">${(window.zfcProfile.konzern_teams).map(id=>teams.find(team=>team.id===id)).filter(Boolean).map(team=>`<option value="${team.id}" ${team.id===selected.id?'selected':''}>${escapeHtml(team.name)}</option>`).join('')}</select></label>`:''}${window.zfcSupabase?'<button class="eb-btn ghost" type="button" data-sign-out>Abmelden</button>':`<label class="eb-muted">Demo-Team <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></header>
+        <div class="eb-head-actions">${window.zfcProfile?.role==='konzern'&&(window.zfcProfile.konzern_teams||[]).length===2?(()=>{const other=teams.find(team=>team.id===window.zfcProfile.konzern_teams.find(id=>id!==selected.id));return other?`<button class="eb-btn" type="button" data-konzern-switch="${other.id}">⇄ Zu ${escapeHtml(other.name)} wechseln</button>`:'';})():''}${window.zfcSupabase?'<button class="eb-btn ghost" type="button" data-sign-out>Abmelden</button>':`<label class="eb-muted">Demo-Team <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></header>
       <main class="eb-body">${panel}
         <div class="eb-note">${window.zfcSupabase?'Rechnungen, Karten und Kontobuchungen werden synchronisiert. Tatsächliche Überweisungen erfolgen außerhalb des Portals.':'Demo-Modus: Dieses Konto ist nicht geschützt. Änderungen und Daten gelten nur für diesen Browser und sind keine echten Banktransaktionen oder rechtsgültigen Signaturen.'}</div></main>
     </div><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
@@ -1138,6 +1138,14 @@
     if (printContract) { const item=data.contracts.find(entry=>entry.id===printContract.dataset.printContract);if(item)contractPrint(item);return; }
     const printStatement = event.target.closest('[data-print-statement]');
     if (printStatement) { statementPrint(printStatement.dataset.printStatement, statementMonth); return; }
+    const konzernSwitch = event.target.closest('[data-konzern-switch]');
+    if (konzernSwitch) {
+      konzernSwitch.disabled = true;
+      const {error} = await window.zfcSupabase.rpc('konzern_switch_team',{p_team_id:konzernSwitch.dataset.konzernSwitch});
+      if (error) { konzernSwitch.disabled = false; showToast(`Wechsel fehlgeschlagen: ${error.message}`,true); return; }
+      location.reload();
+      return;
+    }
     const refreshProfiles = event.target.closest('[data-refresh-profiles]');
     if (refreshProfiles) {
       refreshProfiles.disabled = true;
@@ -1356,13 +1364,6 @@
       if (!event.target.value) return;
       statementMonth=event.target.value;
       if ($('#portal-root')?.dataset.portalPage==='admin') renderAdminTab('ebanking'); else renderTeam(currentTeamId);
-      return;
-    }
-    if (event.target.matches('[data-konzern-switch]')) {
-      event.target.disabled = true;
-      const {error} = await window.zfcSupabase.rpc('konzern_switch_team',{p_team_id:event.target.value});
-      if (error) { event.target.disabled = false; showToast(`Wechsel fehlgeschlagen: ${error.message}`,true); return; }
-      location.reload();
       return;
     }
     if (event.target.matches('[data-user-role]')) {
