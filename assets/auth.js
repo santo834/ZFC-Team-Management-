@@ -59,6 +59,11 @@
   async function readProfile(userId) {
     const { data, error } = await client.from('profiles').select('id,display_name,role,team_id').eq('id', userId).single();
     if (error) throw error;
+    if (data.role === 'konzern') {
+      const { data: links, error: linkError } = await client.from('konzern_teams').select('team_id').eq('profile_id', userId);
+      if (linkError) throw linkError;
+      data.konzern_teams = (links || []).map(link => link.team_id);
+    }
     return data;
   }
 
@@ -78,11 +83,11 @@
     try {
       const profile = await readProfile(session.user.id);
       const page = root.dataset.portalPage;
-      if ((page === 'admin' && profile.role !== 'admin') || (page === 'team' && !['admin', 'team_chief'].includes(profile.role))) {
+      if ((page === 'admin' && profile.role !== 'admin') || (page === 'team' && !['admin', 'team_chief', 'konzern'].includes(profile.role))) {
         location.replace(profile.role === 'admin' ? '../admin/index.html' : '../team/index.html');
         return null;
       }
-      if (page === 'team' && profile.role === 'team_chief' && !profile.team_id) throw new Error('Deinem Teamchef-Konto ist noch kein Team zugewiesen.');
+      if (page === 'team' && profile.role !== 'admin' && !profile.team_id) throw new Error('Deinem Teamchef-Konto ist noch kein Team zugewiesen.');
       window.zfcProfile = profile;
       return { configured: true, profile };
     } catch (error) {

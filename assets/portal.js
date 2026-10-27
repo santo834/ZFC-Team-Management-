@@ -206,6 +206,16 @@
     return `<label>${label}<input name="${name}" type="${type}" value="${safeValue}"></label>`;
   }
 
+  async function openKonzernDialog(profileId) {
+    const dialog = $('#record-editor');
+    if (!dialog) return;
+    const {data: links} = await window.zfcSupabase.from('konzern_teams').select('team_id').eq('profile_id',profileId);
+    const current = (links||[]).map(link=>link.team_id);
+    const pick = (name,value) => `<label>${name}<select class="portal-select" name="${name==='Team 1'?'teamA':'teamB'}">${teamOptions(value)}</select></label>`;
+    dialog.innerHTML = `<form class="portal-form" data-konzern-form="${escapeHtml(profileId)}"><h2 class="full">Konzern: zwei Teams wählen</h2>${pick('Team 1',current[0]||teams[0].id)}${pick('Team 2',current[1]||teams[1].id)}<p class="portal-muted full">Der Konzern-Chef kann zwischen beiden Team-E-Bankings wechseln und beide Konten verwalten.</p><div class="portal-actions"><button class="portal-button primary">Konzern speichern</button><button class="portal-button" type="button" data-close-editor>Abbrechen</button></div></form>`;
+    dialog.showModal();
+  }
+
   function openRecordEditor(type, id) {
     const collections = {offer:data.offers,order:data.orders,invoice:data.invoices,contract:data.contracts,booking:data.bookings,ticket:data.tickets};
     const item = collections[type]?.find(entry=>entry.id===id);
@@ -441,7 +451,7 @@
     } else if (tab==='accounts') {
       content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und bei Teamchefs das Team zu.')}
         <section class="portal-card"><div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-refresh-profiles>Profile aktualisieren</button></div><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Team</th><th></th></tr></thead><tbody>
-          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team><option value="" ${profile.team_id?'':'selected'}>Kein Team</option>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
+          ${adminProfiles.length?adminProfiles.map(profile=>`<tr data-profile-row="${escapeHtml(profile.id)}"><td><strong>${escapeHtml(profile.display_name)}</strong><br><span class="portal-muted">${escapeHtml(profile.email||'Keine E-Mail im Profil')}</span></td><td><select class="portal-select" data-user-role><option value="team_chief" ${profile.role==='team_chief'?'selected':''}>Teamchef</option><option value="konzern" ${profile.role==='konzern'?'selected':''}>Konzern</option><option value="admin" ${profile.role==='admin'?'selected':''}>Admin</option></select></td><td><select class="portal-select" data-user-team><option value="" ${profile.team_id?'':'selected'}>Kein Team</option>${teamOptions(profile.team_id||'')}</select></td><td><button class="portal-button primary" data-save-profile-role="${escapeHtml(profile.id)}">Speichern</button></td></tr>`).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Profile vorhanden. Lege Benutzer zuerst unter Supabase → Authentication → Users an.</td></tr>'}
         </tbody></table></div></section>
         <div class="portal-warning">Neue E-Mail-/Passwort-Konten erstellst du im Supabase Dashboard unter Authentication → Users. Nach der E-Mail-Bestätigung erscheint das Profil hier zur Rollenzuweisung.</div>`;
     } else if (tab==='cards') {
@@ -501,7 +511,7 @@
   function renderTeam(teamId) {
     const root = $('#portal-root');
     if (!root) return;
-    const selected = teams.find(team=>team.id===(window.zfcProfile?.role==='team_chief'?window.zfcProfile.team_id:teamId)) || teams[0];
+    const selected = teams.find(team=>team.id===(window.zfcProfile&&window.zfcProfile.role!=='admin'?window.zfcProfile.team_id:teamId)) || teams[0];
     currentTeamId = selected.id;
     const cards = teamCards(selected.id);
     const base = cards.find(card=>card.kind==='basic');
@@ -561,7 +571,7 @@
     root.innerHTML = `<div class="eb"><div class="eb-frame">
       <header class="eb-head"><a class="eb-brand" href="../index.html"><img src="${escapeHtml(teamLogo(selected))}" alt="${escapeHtml(selected.name)}-Logo"><span>${escapeHtml(selected.name)}</span></a>
         <nav class="eb-tabs" aria-label="Team-E-Banking">${tabs.map(([key,label])=>`<button type="button" class="${tab===key?'active':''}" data-team-tab="${key}">${label}</button>`).join('')}<a href="../sponsors/shop.html">Sponsoren-Shop</a></nav>
-        <div class="eb-head-actions">${window.zfcSupabase?'<button class="eb-btn ghost" type="button" data-sign-out>Abmelden</button>':`<label class="eb-muted">Demo-Team <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></header>
+        <div class="eb-head-actions">${window.zfcProfile?.role==='konzern'&&(window.zfcProfile.konzern_teams||[]).length===2?`<label class="eb-muted">Konzern <select class="portal-select" data-konzern-switch aria-label="Team-E-Banking wechseln">${(window.zfcProfile.konzern_teams).map(id=>teams.find(team=>team.id===id)).filter(Boolean).map(team=>`<option value="${team.id}" ${team.id===selected.id?'selected':''}>${escapeHtml(team.name)}</option>`).join('')}</select></label>`:''}${window.zfcSupabase?'<button class="eb-btn ghost" type="button" data-sign-out>Abmelden</button>':`<label class="eb-muted">Demo-Team <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></header>
       <main class="eb-body">${panel}
         <div class="eb-note">${window.zfcSupabase?'Rechnungen, Karten und Kontobuchungen werden synchronisiert. Tatsächliche Überweisungen erfolgen außerhalb des Portals.':'Demo-Modus: Dieses Konto ist nicht geschützt. Änderungen und Daten gelten nur für diesen Browser und sind keine echten Banktransaktionen oder rechtsgültigen Signaturen.'}</div></main>
     </div><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
@@ -821,7 +831,7 @@
       data.cards.push(card);
       if (save()) { renderAdminTab('cards'); showToast(`Karte für ${teamName(teamId)} erstellt.`); }
     } else if (form.dataset.form==='card-request') {
-      const teamId = window.zfcProfile?.role==='team_chief' ? window.zfcProfile.team_id : fields.teamId;
+      const teamId = window.zfcProfile&&window.zfcProfile.role!=='admin' ? window.zfcProfile.team_id : fields.teamId;
       if (teamCards(teamId).length>=MAX_CARDS_PER_TEAM) throw new Error('Dein Team besitzt bereits drei Karten.');
       if (data.cardRequests.some(item=>item.teamId===teamId && item.status==='pending')) throw new Error('Es liegt bereits ein offener Kredit-Antrag vor.');
       const requestedLimit = nonNegativeCents(fields.limit||0);
@@ -1168,6 +1178,7 @@
       const row = saveProfileRole.closest('[data-profile-row]');
       const role = row.querySelector('[data-user-role]').value;
       const teamId = row.querySelector('[data-user-team]').value || null;
+      if (role==='konzern') { openKonzernDialog(saveProfileRole.dataset.saveProfileRole); return; }
       saveProfileRole.disabled = true;
       const {data: result, error} = await window.zfcSupabase.rpc('admin_set_profile_role',{p_profile_id:saveProfileRole.dataset.saveProfileRole,p_role:role,p_team_id:teamId});
       if (error) {
@@ -1338,7 +1349,7 @@
     if (event.target.matches('[name="itemAmount"]')) updateInvoiceTotal(event.target.closest('[data-invoice-items]'));
   });
 
-  document.addEventListener('change', event => {
+  document.addEventListener('change', async event => {
     if (event.target.matches('[data-team-picker]')) { renderTeam(event.target.value); return; }
     if (event.target.matches('[data-ebank-team]')) { adminTeamId=event.target.value; renderAdminTab('ebanking'); return; }
     if (event.target.matches('[data-statement-month]')) {
@@ -1347,8 +1358,18 @@
       if ($('#portal-root')?.dataset.portalPage==='admin') renderAdminTab('ebanking'); else renderTeam(currentTeamId);
       return;
     }
+    if (event.target.matches('[data-konzern-switch]')) {
+      event.target.disabled = true;
+      const {error} = await window.zfcSupabase.rpc('konzern_switch_team',{p_team_id:event.target.value});
+      if (error) { event.target.disabled = false; showToast(`Wechsel fehlgeschlagen: ${error.message}`,true); return; }
+      location.reload();
+      return;
+    }
     if (event.target.matches('[data-user-role]')) {
       const row = event.target.closest('[data-profile-row]');
+      const teamSelect = row.querySelector('[data-user-team]');
+      teamSelect.hidden = event.target.value==='konzern';
+      if (event.target.value==='konzern') openKonzernDialog(row.dataset.profileRow);
       return;
     }
     if (event.target.matches('[name="gallery"]')) {
@@ -1363,6 +1384,19 @@
   });
 
   document.addEventListener('submit', async event => {
+    const konzernForm = event.target.closest('[data-konzern-form]');
+    if (konzernForm) {
+      event.preventDefault();
+      const teamA = konzernForm.elements.teamA.value, teamB = konzernForm.elements.teamB.value;
+      if (teamA===teamB) { showToast('Bitte zwei verschiedene Teams wählen.',true); return; }
+      const {data: result, error} = await window.zfcSupabase.rpc('admin_set_konzern',{p_profile_id:konzernForm.dataset.konzernForm,p_team_a:teamA,p_team_b:teamB});
+      if (error) { showToast(`Konzern konnte nicht gespeichert werden: ${error.message}`,true); return; }
+      adminProfiles=adminProfiles.map(profile=>profile.id===result.id?{...profile,role:result.role,team_id:result.team_id}:profile);
+      $('#record-editor')?.close();
+      renderAdminTab('accounts');
+      showToast('Konzern wurde gespeichert.');
+      return;
+    }
     const form=event.target.closest('[data-form]');
     if (!form) return;
     event.preventDefault();
