@@ -35,6 +35,76 @@
   const CONTRACT_TYPES = [['driver','Fahrervertrag'],['team_principal','Teamchef-Vertrag'],['insurance','Insurance-Vertrag'],['sponsoring','Sponsoring-Vertrag'],['hq','HQ-Vertrag'],['driver_purchase','Fahrerkauf-Vertrag']];
   const contractTypeName = type => ({...Object.fromEntries(CONTRACT_TYPES),vehicle:'Fahrzeug-Vertrag'})[type] || type;
   const contractTypeOptions = (selected='') => CONTRACT_TYPES.map(([key,label])=>`<option value="${key}" ${key===selected?'selected':''}>${label}</option>`).join('');
+  const CONTRACT_FIELDS = {
+    driver:[
+      {name:'driverName',label:'Name des Fahrers',placeholder:'z. B. Max Mustermann'},
+      {name:'driverNumber',label:'Startnummer',type:'number',placeholder:'z. B. 33'},
+      {name:'nationality',label:'Nationalität',placeholder:'z. B. Schweiz'},
+      {name:'salary',label:'Jahresvergütung in EUR',type:'number',placeholder:'z. B. 1500000'},
+      {name:'bonuses',label:'Prämienregelung',placeholder:'z. B. Siegprämie 50.000 EUR, Punkteprämie …'},
+      {name:'duties',label:'Nebenpflichten',placeholder:'z. B. PR-Termine, Simulator-Einsätze, Tests'}
+    ],
+    team_principal:[
+      {name:'principalName',label:'Name des Teamchefs',placeholder:'z. B. Erika Muster'},
+      {name:'salary',label:'Jahresvergütung in EUR',type:'number',placeholder:'z. B. 850000'},
+      {name:'responsibilities',label:'Verantwortungsbereich',placeholder:'z. B. Sportliche und operative Leitung des Teams'},
+      {name:'authority',label:'Befugnisse',placeholder:'z. B. Zeichnungsberechtigung bis 50.000 EUR'}
+    ],
+    insurance:[
+      {name:'package',label:'Versicherungspaket / Deckungsumfang',placeholder:'z. B. Vollkasko Material, Insassen-Unfall, Transport'},
+      {name:'coverage',label:'Versicherungssumme in EUR',type:'number',placeholder:'z. B. 5000000'},
+      {name:'deductible',label:'Selbstbehalt in EUR',type:'number',placeholder:'z. B. 25000'},
+      {name:'premium',label:'Jahresprämie in EUR',type:'number',placeholder:'z. B. 120000'}
+    ],
+    sponsoring:[
+      {name:'sponsor',label:'Sponsor / Unternehmen',placeholder:'z. B. Muster AG'},
+      {name:'amount',label:'Sponsoringsumme in EUR',type:'number',placeholder:'z. B. 2000000'},
+      {name:'services',label:'Leistungen des Teams',placeholder:'z. B. Logo auf Fahrzeug und Overalls, Hospitality, PR-Termine'},
+      {name:'paymentPlan',label:'Zahlungsplan',type:'select',options:['Einmalzahlung','Monatlich','Vierteljährlich','Pro Saisonhälfte']}
+    ],
+    hq:[
+      {name:'services',label:'Leistungsumfang',placeholder:'z. B. Nutzung Werkshalle, Simulator, Büroflächen'},
+      {name:'fee',label:'Entgelt in EUR pro Monat',type:'number',placeholder:'z. B. 45000'},
+      {name:'usage',label:'Nutzungsbedingungen',placeholder:'z. B. Nutzung nur zu Renn- und Entwicklungszwecken'}
+    ],
+    driver_purchase:[
+      {name:'driverName',label:'Name des Fahrers',placeholder:'z. B. Max Mustermann'},
+      {name:'price',label:'Kaufpreis in EUR',type:'number',placeholder:'z. B. 3000000'},
+      {name:'paymentPlan',label:'Zahlungsplan',type:'select',options:['Einmalzahlung','Ratenzahlung','Zahlung bei Übergabe']},
+      {name:'handover',label:'Übergabezeitpunkt',type:'date'}
+    ]
+  };
+
+  function contractFieldsHtml(type) {
+    const defs = CONTRACT_FIELDS[type] || [];
+    const controls = defs.map(def => {
+      const name = `contract_${def.name}`;
+      const placeholder = def.placeholder ? ` placeholder="${escapeHtml(def.placeholder)}"` : '';
+      if (def.type==='select') return `<label>${escapeHtml(def.label)}<select name="${name}"><option value="">Bitte wählen …</option>${def.options.map(option=>`<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('')}</select></label>`;
+      if (def.type==='textarea') return `<label class="full">${escapeHtml(def.label)}<textarea name="${name}"${placeholder}></textarea></label>`;
+      return `<label>${escapeHtml(def.label)}<input name="${name}" type="${def.type||'text'}"${placeholder}></label>`;
+    }).join('');
+    return `<div class="full contract-extra" data-contract-fields><div class="contract-extra-head"><span class="portal-kicker">Vertragsdetails</span><strong>${escapeHtml(contractTypeName(type))}</strong><small class="portal-muted">Diese Angaben werden automatisch als Konditionen übernommen und können unten im Textfeld angepasst werden.</small></div>${controls}</div>`;
+  }
+
+  function contractTermsFromFields(form) {
+    const defs = CONTRACT_FIELDS[form.elements.type?.value] || [];
+    return defs.map(def => {
+      const value = form.elements[`contract_${def.name}`]?.value?.trim();
+      if (!value) return null;
+      const text = def.type==='date' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? date(value) : value;
+      return `${def.label}: ${text}`;
+    }).filter(Boolean).join('\n');
+  }
+
+  function syncContractTerms(form) {
+    const terms = form?.elements?.terms;
+    if (!terms || terms.dataset.manual==='1') return;
+    let generated = contractTermsFromFields(form);
+    const limit = Number(terms.getAttribute('maxlength'));
+    if (limit>0 && generated.length>limit) generated = generated.slice(0,limit);
+    terms.value = generated;
+  }
   const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[]});
   let data, currentTeamId, currentTeamTab='account', currentAdminTab='overview', adminProfiles=[], adminTeamId=teams[0].id, statementMonth=new Date().toISOString().slice(0,7);
 
@@ -186,13 +256,27 @@
     return `<span class="portal-badge ${color}">${labels[status] || escapeHtml(status)}</span>`;
   }
 
+  const ADMIN_ICONS = {
+    overview:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    content:'<path d="M3 11l9-8 9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/>',
+    offers:'<path d="M20.6 13.4L11 3H4v7l9.6 10.4a2 2 0 0 0 2.8 0l4.2-4.2a2 2 0 0 0 0-2.8z"/><circle cx="8" cy="7" r="1.4"/>',
+    orders:'<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.4L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.6A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.4z"/>',
+    ebanking:'<path d="M3 21h18"/><path d="M4 10h16"/><path d="M12 3l9 6H3l9-6z"/><path d="M6 10v11M18 10v11M10 14v4M14 14v4"/>',
+    finance:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/>',
+    contracts:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>',
+    cards:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>',
+    accounts:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    tickets:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>'
+  };
+
   function layout(active, content, title='Admin Control Center') {
     const navigation = [
       ['overview','Übersicht'],['content','Startseite & Galaxy'],['offers','Angebote'],['orders','Kaufanfragen'],['ebanking','Team-E-Banking'],['finance','Teamkonten & Rechnungen'],['contracts','Verträge'],['cards','Kreditkarten'],['accounts','Benutzer & Rollen'],['tickets','Probleme & Meldungen']
     ];
-    return `<div class="portal-shell"><aside class="portal-sidebar">
+    const navButton = ([key,label]) => `<button type="button" data-admin-tab="${key}" class="${active===key?'active':''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ADMIN_ICONS[key]||''}</svg><span>${label}</span></button>`;
+    return `<div class="portal-shell admin-shell"><aside class="portal-sidebar">
       <a class="portal-brand" href="../index.html"><span class="portal-brand-mark">Z</span><span><strong>ZFC</strong><small>TEAM MANAGEMENT</small></span></a>
-      <div class="portal-label">Arbeitsbereich</div><nav class="portal-nav" aria-label="Admin Navigation">${navigation.map(([key,label])=>`<button type="button" data-admin-tab="${key}" class="${active===key?'active':''}">${label}</button>`).join('')}</nav>
+      <div class="portal-label">Arbeitsbereich</div><nav class="portal-nav" aria-label="Admin Navigation">${navigation.map(navButton).join('')}</nav>
       <div class="portal-side-note">Admin Control Center<br><a href="../index.html">← Zur öffentlichen Website</a></div>
     </aside><main class="portal-main"><div class="portal-topbar"><div><strong>${escapeHtml(title)}</strong><br><small>Verwaltung · Saison 2026</small></div><div class="portal-actions">${window.zfcSupabase?'':'<span class="portal-badge pending">Lokale Demo</span>'}<button class="portal-button" type="button" data-sign-out>Abmelden</button></div></div>${content}</main><dialog class="portal-dialog" id="record-editor"></dialog><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
@@ -424,10 +508,11 @@
       content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen.')}
         <div class="portal-grid two"><section class="portal-card"><h2>Vertragsentwurf anlegen</h2><form class="portal-form" data-form="contract" data-return-tab="contracts">
           <label>Team${teamSelect(adminTeamId)}</label><label>Vertragsart<select name="type">${contractTypeOptions()}</select></label>
+          ${contractFieldsHtml('driver')}
           <label class="full">Titel<input name="title" maxlength="100" required></label>
-          <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea></label>
+          <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea><small class="portal-muted">Wird automatisch aus den Vertragsdetails vorbereitet und kann hier angepasst werden.</small></label>
           <label>Gültig bis<input name="endDate" type="date" required></label><div class="portal-actions"><button class="portal-button primary">Zur Prüfung senden</button></div>
-        </form></section><section class="portal-card"><h2>Hinweis</h2><p>Die Annahme im Demo-Portal ist keine rechtsverbindliche elektronische Signatur. Vor echten Vereinbarungen sind Backend, Identitätsprüfung und rechtliche Dokumente erforderlich.</p></section></div>
+        </form></section><section class="portal-card"><h2>Hinweis</h2><p>Das Formular passt sich der gewählten Vertragsart an: Sobald du eine Vertragsart auswählst, erscheinen die passenden Eingabefelder und die Konditionen werden automatisch vorbereitet.</p><p>Die Annahme im Demo-Portal ist keine rechtsverbindliche elektronische Signatur. Vor echten Vereinbarungen sind Backend, Identitätsprüfung und rechtliche Dokumente erforderlich.</p></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Vertragsübersicht</h2><div class="portal-item-list">${data.contracts.length?data.contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · ${escapeHtml(teamName(contract.teamId))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
     } else if (tab==='ebanking') {
       const team = teams.find(entry=>entry.id===adminTeamId) || teams[0];
@@ -442,8 +527,9 @@
         <div class="portal-grid two" style="margin-top:15px"><section class="portal-card"><h2>Vertrag für ${escapeHtml(team.name)} anlegen</h2><form class="portal-form" data-form="contract" data-return-tab="ebanking">
           <input type="hidden" name="teamId" value="${team.id}">
           <label>Vertragsart<select name="type">${contractTypeOptions()}</select></label><label>Gültig bis<input name="endDate" type="date" required></label>
+          ${contractFieldsHtml('driver')}
           <label class="full">Titel<input name="title" maxlength="100" required></label>
-          <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea></label>
+          <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea><small class="portal-muted">Wird automatisch aus den Vertragsdetails vorbereitet und kann hier angepasst werden.</small></label>
           <div class="portal-actions"><button class="portal-button primary">Vertrag anlegen</button></div></form></section>
         <section class="portal-card"><h2>Verträge</h2><div class="portal-item-list">${teamContracts.length?teamContracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge für dieses Team.</div>'}</div></section></div>
         ${statementSection(team.id)}
@@ -801,6 +887,8 @@
       data.bookings.unshift(booking);
       if (save()) { renderAdminTab('finance'); showToast('Buchung erfasst.'); }
     } else if (form.dataset.form==='contract') {
+      syncContractTerms(form);
+      if (form.elements.terms) fields.terms = form.elements.terms.value;
       let contract={id:uid(),teamId:fields.teamId,type:fields.type,title:fields.title.trim(),terms:fields.terms.trim(),endDate:fields.endDate,status:'pending',createdAt:new Date().toISOString()};
       if (window.zfcSupabase) {
         const {data:row,error}=await window.zfcSupabase.from('contracts').insert({team_id:contract.teamId,type:contract.type,title:contract.title,terms:contract.terms,ends_on:contract.endDate,status:'pending',created_by:window.zfcProfile.id}).select('*').single();
@@ -1355,9 +1443,22 @@
 
   document.addEventListener('input', event => {
     if (event.target.matches('[name="itemAmount"]')) updateInvoiceTotal(event.target.closest('[data-invoice-items]'));
+    if (event.target.matches('form[data-form="contract"] textarea[name="terms"]')) {
+      event.target.dataset.manual = event.target.value.trim() ? '1' : '';
+      return;
+    }
+    if (event.target.closest('[data-contract-fields]')) syncContractTerms(event.target.form);
   });
 
   document.addEventListener('change', async event => {
+    if (event.target.matches('form[data-form="contract"] select[name="type"]')) {
+      const form = event.target.form;
+      const container = form.querySelector('[data-contract-fields]');
+      if (container) container.outerHTML = contractFieldsHtml(event.target.value);
+      syncContractTerms(form);
+      return;
+    }
+    if (event.target.closest('[data-contract-fields]')) { syncContractTerms(event.target.form); return; }
     if (event.target.matches('[data-team-picker]')) { renderTeam(event.target.value); return; }
     if (event.target.matches('[data-ebank-team]')) { adminTeamId=event.target.value; renderAdminTab('ebanking'); return; }
     if (event.target.matches('[data-statement-month]')) {
