@@ -242,6 +242,17 @@
     </article>`;
   }
 
+  function cardDesignPreview(design, teamId=teams[0].id) {
+    const key = CARD_DESIGNS[design] ? design : 'sunset';
+    return `<div class="vcard-preview" data-card-design-preview><article class="vcard vcard-${escapeHtml(key)}">
+      <div class="vcard-top"><span>Vorschau</span><span class="vcard-brand">CREDIT</span></div>
+      <div class="vcard-chip"></div>
+      <div class="vcard-number">5123 4567 •••• 8901</div>
+      <div class="vcard-balance">${escapeHtml(CARD_DESIGNS[key])}</div>
+      <div class="vcard-bottom"><span>${escapeHtml(teamName(teamId))}</span><span>ZFC · Saison 2026</span></div>
+    </article></div>`;
+  }
+
   function teamOptions(selected='') {
     return teams.map(team => `<option value="${team.id}" ${team.id===selected?'selected':''}>${team.name}</option>`).join('');
   }
@@ -547,12 +558,14 @@
       content = `${heading('Virtuelle Kreditkarten','Karten & Kredit-Anträge','Jedes Team besitzt eine Basiskarte und kann bis zu zwei weitere Karten per Kredit-Antrag erhalten. Der Kreditrahmen wird nur beim Erstellen festgelegt.')}
         <section class="portal-card"><h2>Offene Kredit-Anträge (${pending.length})</h2>
           ${pending.length?pending.map(request=>`<div class="portal-item" data-card-request-row="${escapeHtml(request.id)}" style="align-items:flex-start;flex-wrap:wrap"><div class="portal-item-copy"><strong>${escapeHtml(teamName(request.teamId))}</strong><small>Gewünschter Rahmen ${money(request.requestedLimit)} · ${date(request.createdAt)}<br>${escapeHtml(request.reason||'Keine Begründung')}</small></div>
+            ${cardDesignPreview(request.design, request.teamId)}
             <div class="portal-actions"><select class="portal-select" data-request-design style="width:auto">${designOptions(request.design)}</select><input class="portal-select" data-request-label style="width:150px" maxlength="40" placeholder="Kartenname"><input class="portal-select" data-request-limit style="width:130px" type="number" min="0" step="0.01" value="${(request.requestedLimit/100).toFixed(2)}" aria-label="Kreditrahmen in EUR"><button class="portal-button primary" type="button" data-approve-card-request="${escapeHtml(request.id)}">Karte erstellen</button><button class="portal-button" type="button" data-decline-card-request="${escapeHtml(request.id)}">Ablehnen</button></div></div>`).join(''):'<div class="portal-empty">Keine offenen Anträge.</div>'}
           ${handled.length?`<div class="portal-muted" style="margin-top:12px">Zuletzt bearbeitet: ${handled.map(request=>`${escapeHtml(teamName(request.teamId))} ${statusBadge(request.status)}`).join(' · ')}</div>`:''}
         </section>
         <section class="portal-card" style="margin-top:15px"><h2>Karte direkt erstellen</h2><form class="portal-form" data-form="card-create">
           <label>Team${teamSelect()}</label><label>Design<select name="design">${designOptions()}</select></label>
           <label>Kartenname<input name="label" maxlength="40" placeholder="z. B. Entwicklungs-Budget"></label><label>Kreditrahmen (max. Minus) in EUR<input name="limit" type="number" min="0" step="0.01" value="0" required></label>
+          ${cardDesignPreview('sunset')}
           <div class="portal-actions"><button class="portal-button primary">Karte erstellen</button><span class="portal-muted">Der Kreditrahmen kann nach dem Erstellen nicht mehr geändert werden.</span></div>
         </form></section>
         <section class="portal-card" style="margin-top:15px"><h2>Alle Teamkarten</h2>${teams.map(team=>{const cards=teamCards(team.id);return `<div style="margin-bottom:22px"><div class="portal-item" style="padding:6px 0"><strong>${escapeHtml(team.name)}</strong><span class="portal-badge ${cards.length>=MAX_CARDS_PER_TEAM?'good':''}">${cards.length} / ${MAX_CARDS_PER_TEAM} Karten</span></div><div class="vcard-row">${cards.map(card=>cardVisual(card)).join('')||'<div class="portal-empty">Keine Karten</div>'}</div></div>`;}).join('')}</section>`;
@@ -1451,6 +1464,25 @@
   });
 
   document.addEventListener('change', async event => {
+    if (event.target.matches('form[data-form="card-create"] select[name="design"]')) {
+      const form = event.target.form;
+      const preview = form.querySelector('[data-card-design-preview]');
+      if (preview) preview.outerHTML = cardDesignPreview(event.target.value, form.elements.teamId?.value);
+      return;
+    }
+    if (event.target.matches('form[data-form="card-create"] select[name="teamId"]')) {
+      const form = event.target.form;
+      const preview = form.querySelector('[data-card-design-preview]');
+      if (preview) preview.outerHTML = cardDesignPreview(form.elements.design?.value, event.target.value);
+      return;
+    }
+    if (event.target.matches('[data-request-design]')) {
+      const row = event.target.closest('[data-card-request-row]');
+      const preview = row?.querySelector('[data-card-design-preview]');
+      const request = data.cardRequests.find(item=>item.id===row?.dataset.cardRequestRow);
+      if (preview) preview.outerHTML = cardDesignPreview(event.target.value, request?.teamId);
+      return;
+    }
     if (event.target.matches('form[data-form="contract"] select[name="type"]')) {
       const form = event.target.form;
       const container = form.querySelector('[data-contract-fields]');
