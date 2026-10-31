@@ -322,12 +322,7 @@
     const status = (value, options) => editorControl('Status','status',value,'select',options);
     const amount = value => editorControl('Betrag in EUR','amount',(Number(value||0)/100).toFixed(2),'number');
     if (type==='offer') {
-      fields.push(editorControl('Name','name',item.name),category(item.category),amount(item.amount),
-        editorControl('Kurzbeschreibung','description',item.description,'textarea'),
-        editorControl('Konditionen','terms',item.terms||'','textarea'),
-        editorControl('Ziel-URL','url',item.url||'','url'),
-        editorControl('Bild-URL (leer lassen, um das aktuelle Bild zu behalten)','image',item.image?.startsWith('data:')?'':(item.image||''),'url'),
-        `<label class="full">Neues Bild hochladen (optional)<input name="imageFile" type="file" accept="image/*"></label>`,
+      fields.push(offerFormFieldsHtml(item),
         status(item.published===false?'unpublished':'published',[['published','Veröffentlicht'],['unpublished','Nicht veröffentlicht']]));
     } else if (type==='order') {
       fields.push(team(),editorControl('Angebot','offerName',item.offerName),category(item.category),amount(item.amount),
@@ -469,20 +464,11 @@
         <section class="portal-card" style="margin-top:15px"><h2>Teamlogos im E-Banking</h2><p class="portal-muted">Logo-Auswahl mit URL oder Upload findest du im Tab „Team-E-Banking“.</p></section>`;
     } else if (tab==='offers') {
       content = `${heading('Sponsorenshop','Angebote verwalten','Angebote erstellen, veröffentlichen und zentral bearbeiten.')}
-        <div class="portal-grid two">
-          <section class="portal-card"><h2>Neues Angebot</h2><form class="portal-form" data-form="offer">
-              <label>Name<input name="name" maxlength="80" required></label>
-              <label>Kategorie<select name="category"><option value="insurance">Insurance</option><option value="sponsoring">Sponsoring</option><option value="hq">HQ</option><option value="marketplace">Marketplace</option></select></label>
-            <label>Preis in EUR<input name="amount" type="number" min="0.01" step="0.01" required></label>
-            <label class="full">Kurzbeschreibung<textarea name="description" maxlength="300" required></textarea></label>
-            <label class="full">Konditionen<textarea name="terms" maxlength="2000" required></textarea></label>
-            <label class="full">Ziel-URL (optional)<input name="url" type="url" placeholder="https://…"></label>
-            <label class="full">Bild aus der Galerie<select name="gallery"><option value="${GALLERY_IMAGE}">Rennsport-Motiv · Website-Galerie</option><option value="upload">Eigenes Bild vom Gerät auswählen …</option></select></label>
-            <label class="full">Eigenes Bild (optional)<input name="imageFile" type="file" accept="image/*"><small class="portal-muted">Beliebige Bilddatei aus der Gerätegalerie; große Bilder werden automatisch optimiert.</small></label>
-            <div class="portal-actions"><button class="portal-button primary">Angebot veröffentlichen</button></div>
-          </form></section>
-          <section class="portal-card"><h2>Angebote</h2>${data.offers.length?`<div class="portal-item-list">${data.offers.map(offer=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(offer.name)}</strong><small>${categoryName(offer.category)} · ${money(offer.amount)} · ${escapeHtml(offer.description)}</small><small>${escapeHtml(offer.terms||'')} · ${offer.published===false?'Nicht veröffentlicht':'Veröffentlicht'}</small></div><div class="portal-actions"><button class="portal-button" data-edit-record="offer" data-record-id="${offer.id}">Bearbeiten</button><button class="portal-button danger" data-delete-offer="${offer.id}">Entfernen</button></div></div>`).join('')}</div>`:'<div class="portal-empty">Noch keine Angebote angelegt.</div>'}</section>
-        </div>`;
+        <section class="portal-card"><h2>Neues Angebot</h2><p class="portal-muted">Alle Angaben erscheinen auf der öffentlichen Karte und der Detailseite des Angebots.</p><form class="portal-form" data-form="offer">
+          ${offerFormFieldsHtml()}
+          <div class="portal-actions"><button class="portal-button primary">Angebot veröffentlichen</button></div>
+        </form></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Angebote</h2>${data.offers.length?`<div class="portal-item-list">${data.offers.map(offer=>{const d=offerDetails(offer);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(offer.name)}</strong><small>${categoryName(offer.category)}${d.badge?` · ${escapeHtml(d.badge)}`:''} · ${money(offer.amount)} · ${escapeHtml(offer.description)}</small><small>${escapeHtml(offer.terms||'')} · ${offer.published===false?'Nicht veröffentlicht':'Veröffentlicht'}</small></div><div class="portal-actions"><button class="portal-button" data-edit-record="offer" data-record-id="${offer.id}">Bearbeiten</button><button class="portal-button danger" data-delete-offer="${offer.id}">Entfernen</button></div></div>`;}).join('')}</div>`:'<div class="portal-empty">Noch keine Angebote angelegt.</div>'}</section>`;
     } else if (tab==='orders') {
       content = `${heading('Eingang','Sponsoren-Akten','Kaufanfragen aus dem Sponsorenbereich prüfen und weiterbearbeiten.')}
         <section class="portal-card"><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Angebot / Kontakt</th><th>Team</th><th>Datum</th><th>Status</th><th>Aktion</th></tr></thead><tbody>
@@ -676,17 +662,125 @@
     </div><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
 
+  function offerCardHtml(offer) {
+    const d = offerDetails(offer);
+    const image = offer.image || CATEGORY_IMAGES[offer.category] || CATEGORY_IMAGES.marketplace;
+    const meta = [['Jährliche Zahlung', moneyCompact(offer.amount)]];
+    if (d.duration) meta.push(['Vertragslaufzeit', d.duration]);
+    if (d.goals) meta.push(['Ziele', d.goals]);
+    return `<a class="portal-card offer-card" href="${offerPageUrl(offer.id)}">
+      <div class="offer-card-media">
+        <img class="offer-card-bg" src="${escapeHtml(image)}" alt="" loading="lazy">
+        ${offer.logo?`<img class="offer-card-logo" src="${escapeHtml(offer.logo)}" alt="" loading="lazy">`:''}
+        <span class="catalog-badge">${escapeHtml(d.badge||categoryName(offer.category))}</span>
+      </div>
+      <div class="offer-card-body">
+        <h2>${escapeHtml(offer.name)}</h2>
+        <p class="offer-card-tagline">${escapeHtml(d.tagline||offer.description)}</p>
+        <dl class="offer-card-meta">${meta.map(([key,value])=>`<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>
+      </div>
+      <span class="offer-card-cta">Details ansehen <span aria-hidden="true">→</span></span>
+    </a>`;
+  }
+
   function renderPublicOffers() {
-    const container = $('[data-public-offers]');
+    document.querySelectorAll('[data-public-offers]').forEach(container => {
+      const category = container.dataset.offerCategory;
+      const offers = data.offers.filter(offer=>!category || (offer.category||'sponsoring')===category);
+      container.innerHTML = offers.length ? offers.map(offerCardHtml).join('') : '<div class="portal-empty">Aktuell sind keine Angebote veröffentlicht.</div>';
+    });
+  }
+
+  const FAVORITES_KEY = 'zfc-offer-favorites-v1';
+  function offerFavorites() {
+    try { const parsed = JSON.parse(localStorage.getItem(FAVORITES_KEY)||'[]'); return Array.isArray(parsed)?parsed:[]; } catch { return []; }
+  }
+
+  function renderOfferDetail() {
+    const container = document.querySelector('[data-offer-detail]');
     if (!container) return;
-    const category = container.dataset.offerCategory;
-    const offers = data.offers.filter(offer=>!category || (offer.category||'sponsoring')===category);
-    container.innerHTML = offers.length ? offers.map(offer=>`<article class="portal-card portal-sponsor-card portal-catalog-card">
-      <div class="catalog-media"><img src="${escapeHtml(offer.image||CATEGORY_IMAGES[offer.category]||CATEGORY_IMAGES.marketplace)}" alt="${escapeHtml(offer.name)}" loading="lazy"><span class="catalog-badge">${categoryName(offer.category)}</span></div>
-      <div class="catalog-body"><h2>${escapeHtml(offer.name)}</h2><p class="catalog-desc">${escapeHtml(offer.description)}</p>${offer.terms?`<p class="portal-terms"><strong>Konditionen</strong><br>${escapeHtml(offer.terms)}</p>`:''}</div>
-      <div class="catalog-foot"><div class="catalog-price"><small>Preis</small><strong>${money(offer.amount)}</strong></div>
-      <div class="portal-actions"><button class="portal-button primary" data-buy-offer="${offer.id}">Anfrage stellen</button>${safeUrl(offer.url)?`<a class="portal-button" href="${escapeHtml(offer.url)}" target="_blank" rel="noopener noreferrer">Mehr erfahren ↗</a>`:''}</div></div>
-    </article>`).join('') : '<div class="portal-empty">Aktuell sind keine Angebote veröffentlicht.</div>';
+    const id = new URLSearchParams(location.search).get('id');
+    const offer = data.offers.find(item=>item.id===id);
+    if (!offer) {
+      document.title = 'Angebot nicht gefunden · ZFC';
+      container.innerHTML = `<div class="portal-empty">Dieses Angebot wurde nicht gefunden oder ist nicht mehr veröffentlicht.<br><br><a class="portal-button" href="${new URL('../index.html', assetBase).href}">Zur Startseite</a></div>`;
+      return;
+    }
+    const d = offerDetails(offer);
+    document.title = `${offer.name} · ZFC`;
+    const image = offer.image || CATEGORY_IMAGES[offer.category] || CATEGORY_IMAGES.marketplace;
+    const isFavorite = offerFavorites().includes(offer.id);
+    const badges = [categoryName(offer.category), d.badge, d.region].filter(Boolean);
+    const stats = d.stats.slice(0,4);
+    const tabs = [['overview','Übersicht']];
+    if (d.products.length) tabs.push(['products', d.productsTitle || 'Produkte']);
+    if (d.features.length) tabs.push(['features', 'Vorteile']);
+    if (offer.terms) tabs.push(['terms', 'Bedingungen']);
+    const metaRows = [
+      ['Jährliche Zahlung', moneyCompact(offer.amount)],
+      d.duration && ['Vertragslaufzeit', d.duration],
+      d.coverage && ['Deckungssumme', d.coverage],
+      d.region && ['Region', d.region],
+      d.goals && ['Ziele', d.goals],
+      d.options && ['Optionen', d.options]
+    ].filter(Boolean);
+    const featureList = features => `<ul class="od-features">${features.map(feature=>`<li>${escapeHtml(feature)}</li>`).join('')}</ul>`;
+    const productCard = product => `<article class="portal-card od-product">
+      ${product.image?`<div class="od-product-media"><img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.title)}" loading="lazy"></div>`:''}
+      <h3>${escapeHtml(product.title)}</h3>
+      ${product.description?`<p>${escapeHtml(product.description)}</p>`:''}
+      ${product.bullets?.length?featureList(product.bullets):''}
+      <button class="portal-button" type="button" data-offer-inquire="${escapeHtml(product.title)}">Details ansehen</button>
+    </article>`;
+    container.innerHTML = `
+      <nav class="od-breadcrumb" aria-label="Brotkrumen"><a href="${new URL('../index.html', assetBase).href}">Startseite</a><span aria-hidden="true">›</span><a href="${offerCategoryPage(offer.category)}">${categoryName(offer.category)}</a><span aria-hidden="true">›</span><strong>${escapeHtml(offer.name)}</strong></nav>
+      <section class="od-hero">
+        <img class="od-hero-bg" src="${escapeHtml(image)}" alt="">
+        <div class="od-hero-inner">
+          ${offer.logo?`<img class="od-hero-logo" src="${escapeHtml(offer.logo)}" alt="${escapeHtml(offer.name)}-Logo">`:''}
+          <h1>${escapeHtml(offer.name)}</h1>
+          ${d.tagline?`<p class="od-tagline">${escapeHtml(d.tagline)}</p>`:''}
+          <div class="od-badges">${badges.map(badge=>`<span>${escapeHtml(badge)}</span>`).join('')}</div>
+          <p class="od-desc">${escapeHtml(offer.description)}</p>
+        </div>
+        <button class="od-fav${isFavorite?' active':''}" type="button" data-favorite-offer="${escapeHtml(offer.id)}">${isFavorite?'♥ Als Favorit gespeichert':'♡ Als Favorit speichern'}</button>
+      </section>
+      <div class="od-layout">
+        <div class="od-main">
+          <nav class="od-tabs" aria-label="Angebotsdetails">${tabs.map(([key,label],index)=>`<button type="button" class="${index===0?'active':''}" data-offer-tab="${key}">${escapeHtml(label)}</button>`).join('')}</nav>
+          <section data-offer-panel="overview">
+            ${stats.length?`<div class="od-stats">${stats.map(stat=>`<article class="portal-card od-stat"><strong>${escapeHtml(stat.value)}</strong><span>${escapeHtml(stat.label)}</span></article>`).join('')}</div>`:''}
+            <div class="od-about">
+              <div class="od-about-media"><img src="${escapeHtml(image)}" alt="${escapeHtml(offer.name)}">${offer.logo?`<div class="od-about-brand"><img src="${escapeHtml(offer.logo)}" alt=""><span>${escapeHtml(offer.name)}</span></div>`:''}</div>
+              <div class="od-about-copy"><h2>${escapeHtml(d.aboutTitle||`Über ${offer.name}`)}</h2><p>${escapeHtml(d.aboutText||offer.description)}</p>${d.features.length?featureList(d.features.slice(0,3)):''}</div>
+            </div>
+            ${d.products.length?`<h2 class="od-section-title">${escapeHtml(d.productsTitle||'Produkte')}</h2><div class="od-products">${d.products.map(productCard).join('')}</div>`:''}
+          </section>
+          ${d.products.length?`<section data-offer-panel="products" hidden><div class="od-products">${d.products.map(productCard).join('')}</div></section>`:''}
+          ${d.features.length?`<section data-offer-panel="features" hidden><div class="portal-card od-panel-card"><h2>Vorteile</h2>${featureList(d.features)}</div></section>`:''}
+          ${offer.terms?`<section data-offer-panel="terms" hidden><div class="portal-card od-panel-card"><h2>Bedingungen</h2><p class="portal-terms">${escapeHtml(offer.terms)}</p></div></section>`:''}
+        </div>
+        <aside class="od-side">
+          <section class="portal-card od-level">
+            <div class="od-level-head"><span>Partnerschaftslevel</span>${d.badge?`<strong class="od-level-badge">${escapeHtml(d.badge)}</strong>`:''}</div>
+            ${d.partnerText?`<p>${escapeHtml(d.partnerText)}</p>`:''}
+            <dl class="od-meta-list">${metaRows.map(([key,value])=>`<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl>
+          </section>
+          <section class="portal-card od-inquiry">
+            <h2>Anfrage senden</h2>
+            <p class="portal-muted">Fordere ein individuelles Angebot für dein Team an.</p>
+            <form class="portal-form" data-form="purchase">
+              <input type="hidden" name="offerId" value="${escapeHtml(offer.id)}">
+              <label class="full">Team<select name="teamId" required>${teamOptions()}</select></label>
+              <label class="full">Ansprechpartner<input name="contactName" maxlength="80" required></label>
+              <label class="full">E-Mail<input name="email" type="email" maxlength="254" required placeholder="name@team.ch"></label>
+              ${d.products.length?`<label class="full">Gewünschte ${escapeHtml(d.productsTitle||'Produkte')}<select name="products" multiple size="${Math.min(d.products.length,4)}">${d.products.map(product=>`<option value="${escapeHtml(product.title)}">${escapeHtml(product.title)}</option>`).join('')}</select><small class="portal-muted">Mehrfachauswahl mit Ctrl / Cmd möglich.</small></label>`:''}
+              <label class="full">Nachricht (optional)<textarea name="notes" maxlength="1000" placeholder="Zusätzliche Informationen oder spezielle Anforderungen…"></textarea></label>
+              <div class="portal-actions full"><button class="portal-button primary od-send">${escapeHtml(d.ctaText||'Anfrage senden')}</button></div>
+            </form>
+          </section>
+        </aside>
+      </div>`;
   }
 
   function logoForm(teamId) {
@@ -707,15 +801,6 @@
 
   function safeUrl(value) {
     try { return ['https:','http:'].includes(new URL(value).protocol); } catch { return false; }
-  }
-
-  function showPurchaseDialog(offer) {
-    const dialog = $('#purchase-dialog');
-    if (!dialog) return;
-    $('#purchase-offer-name').textContent = offer.name;
-    $('#purchase-offer-price').textContent = money(offer.amount);
-    $('#purchase-offer-id').value = offer.id;
-    dialog.showModal();
   }
 
   function invoiceNumber() {
@@ -773,6 +858,99 @@
     return amount;
   }
 
+  function statRowHtml(stat={}) {
+    return `<div class="stat-row" data-stat-row><input name="statValue" maxlength="40" placeholder="Wert, z. B. 1.250.000 €" value="${escapeHtml(stat.value||'')}"><input name="statLabel" maxlength="80" placeholder="Beschriftung, z. B. Maximale Deckung pro Saison" value="${escapeHtml(stat.label||'')}"><button class="portal-button" type="button" data-remove-stat-row aria-label="Statistik entfernen">×</button></div>`;
+  }
+
+  function productRowHtml(product={}) {
+    return `<div class="product-row" data-product-row>
+      <div class="product-row-head"><input name="productTitle" maxlength="80" placeholder="Produktname, z. B. Fahrzeugschutz" value="${escapeHtml(product.title||'')}"><button class="portal-button" type="button" data-remove-product-row aria-label="Produkt entfernen">×</button></div>
+      <input name="productImage" type="url" maxlength="2000" placeholder="Bild-URL (optional, https://…)" value="${escapeHtml(product.image||'')}">
+      <textarea name="productDescription" maxlength="300" placeholder="Kurzbeschreibung des Produkts">${escapeHtml(product.description||'')}</textarea>
+      <textarea name="productBullets" maxlength="500" placeholder="Leistungspunkte – einer pro Zeile">${escapeHtml((product.bullets||[]).join('\n'))}</textarea>
+    </div>`;
+  }
+
+  function offerFormFieldsHtml(offer=null) {
+    const d = offerDetails(offer);
+    const dValue = key => escapeHtml(d[key]||'');
+    const imageUrl = offer?.image?.startsWith('data:')?'':(offer?.image||'');
+    const logoUrl = offer?.logo?.startsWith('data:')?'':(offer?.logo||'');
+    const stats = d.stats.length?d.stats:[{}];
+    const products = d.products.length?d.products:[{}];
+    return `
+      <label>Name<input name="name" maxlength="80" required value="${escapeHtml(offer?.name||'')}"></label>
+      <label>Kategorie<select name="category">${[['insurance','Insurance'],['sponsoring','Sponsoring'],['hq','HQ'],['marketplace','Marketplace']].map(([key,label])=>`<option value="${key}" ${(offer?.category||'sponsoring')===key?'selected':''}>${label}</option>`).join('')}</select></label>
+      <label>Preis in EUR (jährlich)<input name="amount" type="number" min="0.01" step="0.01" required value="${offer?escapeHtml((offer.amount/100).toFixed(2)):''}"></label>
+      <label>Partner-Level / Badge<input name="badge" maxlength="40" placeholder="z. B. Premium Partner, Hauptsponsor" value="${dValue('badge')}"></label>
+      <label class="full">Tagline / Untertitel<input name="tagline" maxlength="120" placeholder="z. B. Global Insurance Partner" value="${dValue('tagline')}"></label>
+      <label class="full">Kurzbeschreibung<textarea name="description" maxlength="300" required>${escapeHtml(offer?.description||'')}</textarea></label>
+      <div class="full contract-extra"><div class="contract-extra-head"><span class="portal-kicker">Bilder</span><strong>Marken-Bild &amp; freies Bild</strong><small class="portal-muted">Das Marken-Bild (Logo) liegt links und geht weich in das freie Bild über – so entstehen Karten- und Detailansicht. Je Bild: URL eintragen oder Datei hochladen.</small></div>
+        <label>Marken-Bild / Logo-URL<input name="logo" type="url" maxlength="2000" placeholder="https://…" value="${escapeHtml(logoUrl)}"></label>
+        <label>Marken-Bild hochladen<input name="logoFile" type="file" accept="image/*">${offer?.logo?.startsWith('data:')?'<small class="portal-muted">Aktuell ein hochgeladenes Bild – leer lassen, um es zu behalten.</small>':''}</label>
+        <label>Freies Bild-URL<input name="image" type="url" maxlength="2000" placeholder="https://…" value="${escapeHtml(imageUrl)}"></label>
+        <label>Freies Bild hochladen<input name="imageFile" type="file" accept="image/*">${offer?.image?.startsWith('data:')?'<small class="portal-muted">Aktuell ein hochgeladenes Bild – leer lassen, um es zu behalten.</small>':''}</label>
+      </div>
+      <div class="full contract-extra"><div class="contract-extra-head"><span class="portal-kicker">Detailseite</span><strong>Partnerschafts-Angaben</strong><small class="portal-muted">Diese Angaben erscheinen auf der Karte und in der Seitenleiste der Detailseite.</small></div>
+        <label>Vertragslaufzeit<input name="duration" maxlength="60" placeholder="z. B. 3 – 5 Jahre" value="${dValue('duration')}"></label>
+        <label>Deckungssumme<input name="coverage" maxlength="60" placeholder="z. B. bis 1.250.000 €" value="${dValue('coverage')}"></label>
+        <label>Region<input name="region" maxlength="60" placeholder="z. B. Global" value="${dValue('region')}"></label>
+        <label>Ziele<input name="goals" maxlength="120" placeholder="z. B. Markenpräsenz, Teamkooperation" value="${dValue('goals')}"></label>
+        <label class="full">Optionen<input name="options" maxlength="120" placeholder="z. B. Erweiterbare Zusatzpakete" value="${dValue('options')}"></label>
+        <label class="full">Partnerschaftstext<textarea name="partnerText" maxlength="500" placeholder="Kurzer Text zum Partnerschaftslevel in der Seitenleiste">${dValue('partnerText')}</textarea></label>
+      </div>
+      <div class="full contract-extra"><div class="contract-extra-head"><span class="portal-kicker">Über-Bereich</span><strong>Über das Angebot</strong><small class="portal-muted">Ausführliche Vorstellung auf der Detailseite, inklusive Vorteilsliste.</small></div>
+        <label class="full">Über-Titel<input name="aboutTitle" maxlength="80" placeholder="z. B. Über Allianz" value="${dValue('aboutTitle')}"></label>
+        <label class="full">Über-Text<textarea name="aboutText" maxlength="1500" placeholder="Ausführliche Beschreibung des Angebots bzw. Partners">${dValue('aboutText')}</textarea></label>
+        <label class="full">Vorteile (einer pro Zeile)<textarea name="features" maxlength="800" placeholder="Weltweite Präsenz&#10;Individuelle Team-Lösungen&#10;Schnelle Schadensabwicklung">${escapeHtml(d.features.join('\n'))}</textarea></label>
+      </div>
+      <div class="full contract-extra"><div class="contract-extra-head"><span class="portal-kicker">Statistiken</span><strong>Bis zu vier Kennzahlen</strong><small class="portal-muted">Wert und Beschriftung, z. B. „24/7“ + „Schadenservice &amp; Notfallunterstützung“.</small></div>
+        <div class="full stat-rows" data-stat-rows>${stats.map(statRowHtml).join('')}<button class="portal-button" type="button" data-add-stat-row>+ Statistik hinzufügen</button></div>
+      </div>
+      <div class="full contract-extra"><div class="contract-extra-head"><span class="portal-kicker">Produkte</span><strong>Produkte &amp; Leistungspakete</strong><small class="portal-muted">Erscheinen als eigener Tab und als Kartenraster auf der Detailseite.</small></div>
+        <label class="full">Titel der Produkt-Sektion<input name="productsTitle" maxlength="60" placeholder="z. B. Versicherungsprodukte" value="${dValue('productsTitle')}"></label>
+        <div class="full product-rows" data-product-rows>${products.map(productRowHtml).join('')}<button class="portal-button" type="button" data-add-product-row>+ Produkt hinzufügen</button></div>
+      </div>
+      <label class="full">Konditionen<textarea name="terms" maxlength="2000" required>${escapeHtml(offer?.terms||'')}</textarea></label>
+      <label>Ziel-URL (optional)<input name="url" type="url" maxlength="2000" placeholder="https://…" value="${escapeHtml(offer?.url||'')}"></label>
+      <label>Button-Text (optional)<input name="ctaText" maxlength="40" placeholder="z. B. Vertrag anfragen" value="${dValue('ctaText')}"></label>`;
+  }
+
+  function readOfferForm(form, existing={}) {
+    const fields = Object.fromEntries(new FormData(form));
+    if (!fields.name?.trim() || !fields.description?.trim()) throw new Error('Name und Kurzbeschreibung dürfen nicht leer sein.');
+    if (fields.url && !safeUrl(fields.url)) throw new Error('Bitte eine gültige http(s)-URL eingeben.');
+    const imageUrl = (fields.image||'').trim();
+    const logoUrl = (fields.logo||'').trim();
+    if (imageUrl && !safeUrl(imageUrl)) throw new Error('Bitte eine gültige http(s)-Bild-URL eingeben.');
+    if (logoUrl && !safeUrl(logoUrl)) throw new Error('Bitte eine gültige http(s)-Logo-URL eingeben.');
+    const image = form.querySelector('[name="imageFile"]')?.dataset.image || imageUrl || (existing.image?.startsWith('data:')?existing.image:'');
+    const logo = form.querySelector('[name="logoFile"]')?.dataset.image || logoUrl || (existing.logo?.startsWith('data:')?existing.logo:'');
+    const lines = value => String(value||'').split('\n').map(line=>line.trim()).filter(Boolean);
+    const stats = [...form.querySelectorAll('[data-stat-row]')].map(row=>({
+      value:row.querySelector('[name="statValue"]')?.value.trim()||'',
+      label:row.querySelector('[name="statLabel"]')?.value.trim()||''
+    })).filter(stat=>stat.value||stat.label).slice(0,4);
+    const products = [...form.querySelectorAll('[data-product-row]')].map(row=>({
+      title:row.querySelector('[name="productTitle"]')?.value.trim()||'',
+      image:row.querySelector('[name="productImage"]')?.value.trim()||'',
+      description:row.querySelector('[name="productDescription"]')?.value.trim()||'',
+      bullets:lines(row.querySelector('[name="productBullets"]')?.value)
+    })).filter(product=>product.title);
+    products.forEach(product=>{ if (product.image && !safeUrl(product.image) && !product.image.startsWith('data:image/')) throw new Error('Bitte gültige http(s)-Bild-URLs für die Produkte eingeben.'); });
+    const details = {
+      tagline:(fields.tagline||'').trim(), badge:(fields.badge||'').trim(),
+      duration:(fields.duration||'').trim(), coverage:(fields.coverage||'').trim(),
+      region:(fields.region||'').trim(), goals:(fields.goals||'').trim(), options:(fields.options||'').trim(),
+      partnerText:(fields.partnerText||'').trim(), aboutTitle:(fields.aboutTitle||'').trim(), aboutText:(fields.aboutText||'').trim(),
+      productsTitle:(fields.productsTitle||'').trim(), ctaText:(fields.ctaText||'').trim(),
+      features:lines(fields.features), stats, products
+    };
+    return {amount:cents(fields.amount), image, logo, details,
+      name:fields.name.trim(), category:fields.category, description:fields.description.trim(),
+      terms:(fields.terms||'').trim(), url:(fields.url||'').trim()};
+  }
+
   async function handleForm(form) {
     const fields = Object.fromEntries(new FormData(form));
     if (form.dataset.form==='record-edit') {
@@ -782,16 +960,13 @@
       if (!item) throw new Error('Der Eintrag wurde nicht gefunden.');
       const amount = ['offer','order','invoice','booking'].includes(type)?cents(fields.amount):null;
       const teamId = fields.teamId || item.teamId;
-      if (!teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
+      if (type!=='offer' && !teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
       let table, payload, updated;
       if (type==='offer') {
-        if (!fields.name.trim() || !fields.description.trim()) throw new Error('Name und Kurzbeschreibung dürfen nicht leer sein.');
-        if (fields.url && !safeUrl(fields.url)) throw new Error('Bitte eine gültige http(s)-URL eingeben.');
-        if (fields.image && !safeUrl(fields.image) && !fields.image.startsWith('data:image/') && fields.image!==item.image) throw new Error('Bitte eine gültige http(s)-Bild-URL eingeben.');
-        const newImage=form.querySelector('[name="imageFile"]')?.dataset.image;
-        updated={...item,name:fields.name.trim(),category:fields.category,amount,description:fields.description.trim(),terms:fields.terms.trim(),url:fields.url.trim(),image:newImage||fields.image.trim()||(item.image?.startsWith('data:')?item.image:''),published:fields.published==='published'};
+        const offerInput = readOfferForm(form, item);
+        updated={...item,name:offerInput.name,category:offerInput.category,amount,description:offerInput.description,terms:offerInput.terms,url:offerInput.url,image:offerInput.image,logo:offerInput.logo,details:offerInput.details,published:fields.status==='published'};
         table='sponsor_offers';
-        payload={name:updated.name,category:updated.category,amount_cents:amount,description:updated.description,terms:updated.terms,target_url:updated.url||null,image_path:updated.image||null,published:updated.published};
+        payload={name:updated.name,category:updated.category,amount_cents:amount,description:updated.description,terms:updated.terms,target_url:updated.url||null,image_path:updated.image||null,logo_path:updated.logo||null,details:updated.details,published:updated.published};
       } else if (type==='order') {
         if (!fields.offerName.trim() || !fields.contactName.trim() || !fields.email.trim()) throw new Error('Angebot, Kontakt und E-Mail dürfen nicht leer sein.');
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email.trim())) throw new Error('Bitte eine gültige E-Mail-Adresse eingeben.');
@@ -856,18 +1031,16 @@
       if (!logo) throw new Error('Bitte eine Logo-URL eingeben oder ein Bild auswählen.');
       if (await storeTeamLogo(fields.teamId,logo)) { adminTeamId=fields.teamId; renderAdminTab('ebanking'); showToast(`Logo für ${teamName(fields.teamId)} gespeichert.`); }
     } else if (form.dataset.form==='offer') {
-      if (fields.url && !safeUrl(fields.url)) throw new Error('Bitte eine gültige http(s)-URL eingeben.');
-      const amount = cents(fields.amount);
-      const image = form.querySelector('[name="imageFile"]').dataset.image || (fields.gallery==='upload'?'':fields.gallery);
+      const offerInput = readOfferForm(form);
       if (window.zfcSupabase) {
         const {data: row, error} = await window.zfcSupabase.from('sponsor_offers').insert({
-          category:fields.category,name:fields.name.trim(),description:fields.description.trim(),terms:fields.terms.trim(),target_url:fields.url.trim()||null,
-          amount_cents:amount,image_path:image||null,published:true,created_by:window.zfcProfile.id
+          category:offerInput.category,name:offerInput.name,description:offerInput.description,terms:offerInput.terms,target_url:offerInput.url||null,
+          amount_cents:offerInput.amount,image_path:offerInput.image||null,logo_path:offerInput.logo||null,details:offerInput.details,published:true,created_by:window.zfcProfile.id
         }).select('*').single();
         if (error) throw new Error(`Angebot konnte nicht veröffentlicht werden: ${error.message}`);
         data.offers.unshift(mapOffer(row));
       } else {
-        data.offers.push({id:uid(),category:fields.category,name:fields.name.trim(),description:fields.description.trim(),terms:fields.terms.trim(),url:fields.url.trim(),amount,image,createdAt:new Date().toISOString()});
+        data.offers.push({id:uid(),category:offerInput.category,name:offerInput.name,description:offerInput.description,terms:offerInput.terms,url:offerInput.url,amount:offerInput.amount,image:offerInput.image,logo:offerInput.logo,details:offerInput.details,createdAt:new Date().toISOString()});
       }
       if (save()) { renderAdminTab('offers'); showToast('Angebot veröffentlicht.'); }
     } else if (form.dataset.form==='invoice') {
@@ -966,14 +1139,16 @@
       if (!offer) throw new Error('Dieses Angebot ist nicht mehr verfügbar.');
       const email = fields.email.trim();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Bitte eine gültige E-Mail-Adresse eingeben.');
+      const selectedProducts = new FormData(form).getAll('products').map(value=>String(value).trim()).filter(Boolean);
+      const notes = [selectedProducts.length?`Gewünschte Produkte: ${selectedProducts.join(', ')}`:'', (fields.notes||'').trim()].filter(Boolean).join('\n\n');
       if (window.zfcSupabase) {
-        const { error } = await window.zfcSupabase.functions.invoke('public-purchase', {body:{offerId:offer.id,teamId:fields.teamId,contactName:fields.contactName,email,company:fields.company||'',billingAddress:fields.billingAddress||'',notes:fields.notes||''}});
+        const { error } = await window.zfcSupabase.functions.invoke('public-purchase', {body:{offerId:offer.id,teamId:fields.teamId,contactName:fields.contactName,email,company:fields.company||'',billingAddress:fields.billingAddress||'',notes}});
         if (error) throw new Error('Anfrage konnte nicht gesendet werden. Bitte später erneut versuchen.');
-        form.closest('dialog').close(); form.reset(); showToast('Anfrage wurde an die Verwaltung gesendet.');
+        form.closest('dialog')?.close(); form.reset(); showToast('Anfrage wurde an die Verwaltung gesendet.');
         return;
       }
-      data.orders.push({id:uid(),offerId:offer.id,offerName:offer.name,category:offer.category||'sponsoring',terms:offer.terms||'',amount:offer.amount,teamId:fields.teamId,contactName:fields.contactName.trim(),email,company:(fields.company||'').trim(),billingAddress:(fields.billingAddress||'').trim(),notes:(fields.notes||'').trim(),status:'pending',createdAt:new Date().toISOString()});
-      if (save()) { form.closest('dialog').close(); form.reset(); showToast('Anfrage wurde als Sponsoren-Akte vorgemerkt.'); }
+      data.orders.push({id:uid(),offerId:offer.id,offerName:offer.name,category:offer.category||'sponsoring',terms:offer.terms||'',amount:offer.amount,teamId:fields.teamId,contactName:fields.contactName.trim(),email,company:(fields.company||'').trim(),billingAddress:(fields.billingAddress||'').trim(),notes,status:'pending',createdAt:new Date().toISOString()});
+      if (save()) { form.closest('dialog')?.close(); form.reset(); showToast('Anfrage wurde als Sponsoren-Akte vorgemerkt.'); }
     }
   }
 
@@ -1015,8 +1190,24 @@
   }
 
   function mapOffer(row) {
-    return {id:row.id,category:row.category||'sponsoring',name:row.name,description:row.description,terms:row.terms||'',url:row.target_url||'',amount:Number(row.amount_cents),image:row.image_path||'',published:row.published,createdAt:row.created_at};
+    return {id:row.id,category:row.category||'sponsoring',name:row.name,description:row.description,terms:row.terms||'',url:row.target_url||'',amount:Number(row.amount_cents),image:row.image_path||'',logo:row.logo_path||'',details:row.details&&typeof row.details==='object'?row.details:{},published:row.published,createdAt:row.created_at};
   }
+
+  const OFFER_DETAIL_DEFAULTS = {tagline:'',badge:'',duration:'',coverage:'',region:'',goals:'',options:'',partnerText:'',aboutTitle:'',aboutText:'',productsTitle:'',ctaText:'',features:[],stats:[],products:[]};
+
+  function offerDetails(offer) {
+    const raw = offer?.details && typeof offer.details==='object' ? offer.details : {};
+    const details = {...OFFER_DETAIL_DEFAULTS, ...raw};
+    details.features = Array.isArray(details.features) ? details.features : [];
+    details.stats = Array.isArray(details.stats) ? details.stats : [];
+    details.products = Array.isArray(details.products) ? details.products : [];
+    return details;
+  }
+
+  const offerPageUrl = id => new URL(`../offer/index.html?id=${encodeURIComponent(id)}`, assetBase).href;
+  const OFFER_CATEGORY_PAGES = {insurance:'../insurance/index.html',sponsoring:'../sponsors/shop.html',hq:'../hq/shop.html',marketplace:'../marketplace/index.html'};
+  const offerCategoryPage = category => new URL(OFFER_CATEGORY_PAGES[category]||OFFER_CATEGORY_PAGES.marketplace, assetBase).href;
+  const moneyCompact = centsValue => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:Number(centsValue)%100?2:0}).format((Number(centsValue)||0)/100);
 
   function mapOrder(row) {
     return {id:row.id,offerId:row.offer_id,offerName:row.offer_name,category:row.category||'sponsoring',terms:row.offer_terms||'',amount:Number(row.amount_cents),teamId:row.team_id,contactName:row.contact_name,email:row.email,company:row.company||'',billingAddress:row.billing_address||'',notes:row.customer_notes||'',adminNotes:row.admin_notes||'',status:row.status,createdAt:row.created_at};
@@ -1134,7 +1325,7 @@
       await loadSharedRecords(page);
     } catch (error) {
       if (root) root.innerHTML = `<main class="portal-main"><div class="portal-warning">${escapeHtml(error.message)}</div></main>`;
-      else document.querySelectorAll('[data-public-offers]').forEach(el=>{el.innerHTML=`<div class="portal-warning">Angebote konnten nicht geladen werden: ${escapeHtml(error.message)}</div>`;});
+      else document.querySelectorAll('[data-public-offers],[data-offer-detail]').forEach(el=>{el.innerHTML=`<div class="portal-warning">Angebote konnten nicht geladen werden: ${escapeHtml(error.message)}</div>`;});
       return;
     }
     applyHome();
@@ -1143,8 +1334,8 @@
         ? 'Anfragen werden an die Verwaltung übermittelt. Die Anfrage ist unverbindlich; Vertrag und Zahlung werden separat bestätigt.'
         : 'Demo-Modus: Anfragen werden nur in diesem Browser gespeichert. Für die zentrale Bearbeitung muss Supabase eingerichtet sein.';
     });
-    document.querySelectorAll('#purchase-dialog select[name="teamId"]').forEach(select=>{select.innerHTML=teamOptions();});
     renderPublicOffers();
+    renderOfferDetail();
     if (page==='admin') renderAdminTab();
     if (page==='team') renderTeam(window.zfcProfile?.team_id || new URLSearchParams(location.search).get('team') || teams[0].id);
     startRealtime(page);
@@ -1154,7 +1345,7 @@
 
   function startRealtime(page) {
     const client = window.zfcSupabase;
-    if (!client || !page && !$('[data-public-offers],[data-home-title],img[data-logo-key],img[src*="team-logos/"]')) return;
+    if (!client || !page && !$('[data-public-offers],[data-offer-detail],[data-home-title],img[data-logo-key],img[src*="team-logos/"]')) return;
     let timer, busy = false, again = false;
     const userIsEditing = () => document.querySelector('dialog[open]') ||
       document.activeElement?.matches?.('input,textarea,select');
@@ -1169,6 +1360,7 @@
         await loadSharedRecords(page);
         if (snapshot() !== before) {
           renderPublicOffers();
+          renderOfferDetail();
           if (page==='admin') renderAdminTab(currentAdminTab);
           if (page==='team') renderTeam(currentTeamId);
           applyHome();
@@ -1300,8 +1492,52 @@
       showToast('Rolle und Team wurden gespeichert.');
       return;
     }
-    const buy = event.target.closest('[data-buy-offer]');
-    if (buy) { const offer=data.offers.find(item=>item.id===buy.dataset.buyOffer); if(offer)showPurchaseDialog(offer); return; }
+    const offerTab = event.target.closest('[data-offer-tab]');
+    if (offerTab) {
+      const detail = offerTab.closest('[data-offer-detail]');
+      detail?.querySelectorAll('[data-offer-tab]').forEach(tab=>tab.classList.toggle('active', tab===offerTab));
+      detail?.querySelectorAll('[data-offer-panel]').forEach(panel=>{ panel.hidden = panel.dataset.offerPanel!==offerTab.dataset.offerTab; });
+      return;
+    }
+    const favorite = event.target.closest('[data-favorite-offer]');
+    if (favorite) {
+      const id = favorite.dataset.favoriteOffer;
+      const favorites = offerFavorites();
+      const index = favorites.indexOf(id);
+      if (index>=0) favorites.splice(index,1); else favorites.push(id);
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+      const active = favorites.includes(id);
+      favorite.classList.toggle('active', active);
+      favorite.textContent = active?'♥ Als Favorit gespeichert':'♡ Als Favorit speichern';
+      showToast(active?'Angebot als Favorit gespeichert.':'Favorit entfernt.');
+      return;
+    }
+    const inquire = event.target.closest('[data-offer-inquire]');
+    if (inquire) {
+      const detail = inquire.closest('[data-offer-detail]');
+      const select = detail?.querySelector('select[name="products"]');
+      if (select) [...select.options].forEach(option=>{ option.selected = option.value===inquire.dataset.offerInquire; });
+      detail?.querySelector('.od-inquiry')?.scrollIntoView?.({behavior:'smooth'});
+      return;
+    }
+    const addStat = event.target.closest('[data-add-stat-row]');
+    if (addStat) { addStat.insertAdjacentHTML('beforebegin',statRowHtml()); return; }
+    const removeStat = event.target.closest('[data-remove-stat-row]');
+    if (removeStat) {
+      const wrap = removeStat.closest('[data-stat-rows]');
+      if (wrap.querySelectorAll('[data-stat-row]').length>1) removeStat.closest('[data-stat-row]').remove();
+      else wrap.querySelectorAll('input').forEach(input=>{input.value='';});
+      return;
+    }
+    const addProduct = event.target.closest('[data-add-product-row]');
+    if (addProduct) { addProduct.insertAdjacentHTML('beforebegin',productRowHtml()); return; }
+    const removeProduct = event.target.closest('[data-remove-product-row]');
+    if (removeProduct) {
+      const wrap = removeProduct.closest('[data-product-rows]');
+      if (wrap.querySelectorAll('[data-product-row]').length>1) removeProduct.closest('[data-product-row]').remove();
+      else wrap.querySelectorAll('input,textarea').forEach(input=>{input.value='';});
+      return;
+    }
     const approve = event.target.closest('[data-approve-order]');
     if (approve) {
       const order=data.orders.find(item=>item.id===approve.dataset.approveOrder);
@@ -1510,7 +1746,7 @@
       const form=event.target.form, file=form.querySelector('[name="imageFile"]');
       if(event.target.value!=='upload'){file.dataset.image='';const preview=form.querySelector('[data-home-preview]');if(preview)preview.src=event.target.value;}
     }
-    if (event.target.matches('[name="imageFile"]') && event.target.files[0]) {
+    if (event.target.matches('[name="imageFile"],[name="logoFile"]') && event.target.files[0]) {
       const file=event.target.files[0], form=event.target.form;
       if(!file.type.startsWith('image/')){showToast('Bitte eine Bilddatei auswählen.',true);event.target.value='';return;}
       readImage(file).then(result=>{event.target.dataset.image=result;const preview=form.querySelector('[data-home-preview]');if(preview)preview.src=result;}).catch(()=>showToast('Bild konnte nicht gelesen werden.',true));

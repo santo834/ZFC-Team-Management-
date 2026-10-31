@@ -23,8 +23,8 @@ Deno.serve(async (request) => {
         typeof contactName !== "string" || contactName.trim().length < 1 || contactName.length > 80 ||
         typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
         typeof company !== "string" || company.length > 120 ||
-        typeof billingAddress !== "string" || billingAddress.trim().length < 1 || billingAddress.length > 300 ||
-        typeof notes !== "string" || notes.trim().length < 1 || notes.length > 1000) {
+        typeof billingAddress !== "string" || billingAddress.length > 300 ||
+        typeof notes !== "string" || notes.length > 1000) {
       return response(400, { error: "Bitte prüfe die Anfrageangaben." });
     }
 

@@ -1155,6 +1155,13 @@ select u.id, u.email, coalesce(nullif(split_part(coalesce(u.email, ''), '@', 1),
 from auth.users u
 on conflict (id) do nothing;
 
+-- ===== 20261031090000_offer_details =====
+-- Marken-Bild (Logo) und strukturierte Details für die öffentliche Angebots-Detailseite.
+alter table public.sponsor_offers
+  add column if not exists logo_path text,
+  add column if not exists details jsonb not null default '{}'::jsonb
+    check (jsonb_typeof(details) = 'object');
+
 -- ===== Realtime =====
 do $$
 declare t text;
