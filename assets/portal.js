@@ -593,6 +593,21 @@
       <ul class="eb-legend">${spent.map(item=>`<li><span class="eb-legend-dot" style="background:${CARD_COLORS[item.card.design]||'#3f8f73'}"></span><span>${escapeHtml(item.card.label)}</span><b>${money(item.total)}</b></li>`).join('')}</ul></div>`;
   }
 
+  function teamInquiryForm(offer, teamId) {
+    const d = offerDetails(offer);
+    return `<form class="portal-form" data-form="purchase">
+      <h2 class="full">Anfrage: ${escapeHtml(offer.name)}</h2>
+      <input type="hidden" name="offerId" value="${escapeHtml(offer.id)}">
+      <input type="hidden" name="teamId" value="${escapeHtml(teamId)}">
+      <p class="portal-muted full">${categoryName(offer.category)} · ${money(offer.amount)} jährlich · für ${escapeHtml(teamName(teamId))}. Die Anfrage ist unverbindlich; die Verwaltung prüft Konditionen und Abwicklung.</p>
+      <label class="full">Ansprechpartner<input name="contactName" maxlength="80" required value="${escapeHtml(window.zfcProfile?.display_name||'')}"></label>
+      <label class="full">E-Mail<input name="email" type="email" maxlength="254" required placeholder="name@team.ch" value="${escapeHtml(window.zfcProfile?.email||'')}"></label>
+      ${d.products.length?`<label class="full">Gewünschte ${escapeHtml(d.productsTitle||'Produkte')}<select name="products" multiple size="${Math.min(d.products.length,4)}">${d.products.map(product=>`<option value="${escapeHtml(product.title)}">${escapeHtml(product.title)}</option>`).join('')}</select><small class="portal-muted">Mehrfachauswahl mit Ctrl / Cmd möglich.</small></label>`:''}
+      <label class="full">Nachricht (optional)<textarea name="notes" maxlength="1000" placeholder="Zusätzliche Informationen oder spezielle Anforderungen…"></textarea></label>
+      <div class="portal-actions full"><button class="portal-button primary">${escapeHtml(d.ctaText||'Anfrage senden')}</button><button class="portal-button" type="button" data-close-editor>Abbrechen</button></div>
+    </form>`;
+  }
+
   function renderTeam(teamId) {
     const root = $('#portal-root');
     if (!root) return;
@@ -609,7 +624,7 @@
     const requests = data.cardRequests.filter(request=>request.teamId===selected.id);
     const pendingRequest = requests.find(request=>request.status==='pending');
     const cardName = entry => cards.find(card=>card.id===entryCardId(entry))?.label || '–';
-    const tabs = [['account','Mein Konto'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
+    const tabs = [['account','Mein Konto'],['offers','Angebote'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
     const tab = tabs.some(([key])=>key===currentTeamTab) ? currentTeamTab : 'account';
     const txRow = entry => `<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td><span class="eb-pill">${escapeHtml(cardName(entry))}</span></td><td class="eb-num ${entry.direction==='credit'?'eb-plus':'eb-minus'}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`;
     const txTable = (rows,empty='Noch keine Buchungen vorhanden.') => `<div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Karte</th><th class="eb-num">Betrag</th></tr></thead><tbody>${rows.length?rows.map(txRow).join(''):`<tr><td colspan="4" class="portal-empty">${empty}</td></tr>`}</tbody></table></div>`;
@@ -630,6 +645,11 @@
         <section class="eb-card"><div class="eb-row-between"><h3>Letzte Transaktionen</h3><button class="eb-link" type="button" data-team-tab="transactions">Alle ansehen</button></div>${txTable(bookings.slice(0,6))}</section>
         <section class="eb-card"><h3>Ausgaben nach Karte</h3>${expenseDonut(selected,cards)}</section>
       </div>`;
+    } else if (tab==='offers') {
+      const teamOrders = data.orders.filter(order=>order.teamId===selected.id).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+      panel = `<section class="eb-card" id="angebote"><h3>Angebote der ZFC</h3><p class="eb-muted">Wähle ein Angebot und sende eine unverbindliche Anfrage an die Verwaltung.</p>
+        ${data.offers.length?`<div class="portal-item-list">${data.offers.map(offer=>{const d=offerDetails(offer);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(offer.name)}</strong><small>${categoryName(offer.category)}${d.badge?` · ${escapeHtml(d.badge)}`:''} · ${money(offer.amount)} jährlich<br>${escapeHtml(d.tagline||offer.description)}</small></div><div class="portal-actions"><a class="portal-button" href="${offerPageUrl(offer.id)}">Details</a><button class="eb-btn" type="button" data-team-inquire="${escapeHtml(offer.id)}">Anfrage senden</button></div></div>`;}).join('')}</div>`:'<div class="portal-empty">Aktuell sind keine Angebote veröffentlicht.</div>'}</section>
+      <section class="eb-card" style="margin-top:16px" id="anfragen"><h3>Deine Anfragen</h3><div class="portal-item-list">${teamOrders.length?teamOrders.map(order=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(order.offerName)}</strong><small>${categoryName(order.category)} · ${money(order.amount)} · ${date(order.createdAt)}${order.notes?`<br>${escapeHtml(order.notes)}`:''}</small></div>${statusBadge(order.status)}</div>`).join(''):'<div class="portal-empty">Du hast noch keine Anfragen gesendet.</div>'}</div></section>`;
     } else if (tab==='transactions') {
       panel = `${statementSection(selected.id)}<section class="eb-card" style="margin-top:16px"><h3>Alle Kontobewegungen</h3>${txTable(bookings)}</section>`;
     } else if (tab==='cards') {
@@ -659,7 +679,7 @@
         <div class="eb-head-actions">${window.zfcProfile?.role==='konzern'&&(window.zfcProfile.konzern_teams||[]).length===2?(()=>{const other=teams.find(team=>team.id===window.zfcProfile.konzern_teams.find(id=>id!==selected.id));return other?`<button class="eb-btn" type="button" data-konzern-switch="${other.id}">⇄ Zu ${escapeHtml(other.name)} wechseln</button>`:'';})():''}${window.zfcSupabase?'<button class="eb-btn ghost" type="button" data-sign-out>Abmelden</button>':`<label class="eb-muted">Demo-Team <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></header>
       <main class="eb-body">${panel}
         <div class="eb-note">${window.zfcSupabase?'Rechnungen, Karten und Kontobuchungen werden synchronisiert. Tatsächliche Überweisungen erfolgen außerhalb des Portals.':'Demo-Modus: Dieses Konto ist nicht geschützt. Änderungen und Daten gelten nur für diesen Browser und sind keine echten Banktransaktionen oder rechtsgültigen Signaturen.'}</div></main>
-    </div><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
+    </div><dialog class="portal-dialog" id="record-editor"></dialog><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
 
   function offerCardHtml(offer) {
@@ -771,9 +791,9 @@
             <p class="portal-muted">Fordere ein individuelles Angebot für dein Team an.</p>
             <form class="portal-form" data-form="purchase">
               <input type="hidden" name="offerId" value="${escapeHtml(offer.id)}">
-              <label class="full">Team<select name="teamId" required>${teamOptions()}</select></label>
-              <label class="full">Ansprechpartner<input name="contactName" maxlength="80" required></label>
-              <label class="full">E-Mail<input name="email" type="email" maxlength="254" required placeholder="name@team.ch"></label>
+              <label class="full">Team<select name="teamId" required>${teamOptions(window.zfcProfile?.team_id||'')}</select></label>
+              <label class="full">Ansprechpartner<input name="contactName" maxlength="80" required value="${escapeHtml(window.zfcProfile?.display_name||'')}"></label>
+              <label class="full">E-Mail<input name="email" type="email" maxlength="254" required placeholder="name@team.ch" value="${escapeHtml(window.zfcProfile?.email||'')}"></label>
               ${d.products.length?`<label class="full">Gewünschte ${escapeHtml(d.productsTitle||'Produkte')}<select name="products" multiple size="${Math.min(d.products.length,4)}">${d.products.map(product=>`<option value="${escapeHtml(product.title)}">${escapeHtml(product.title)}</option>`).join('')}</select><small class="portal-muted">Mehrfachauswahl mit Ctrl / Cmd möglich.</small></label>`:''}
               <label class="full">Nachricht (optional)<textarea name="notes" maxlength="1000" placeholder="Zusätzliche Informationen oder spezielle Anforderungen…"></textarea></label>
               <div class="portal-actions full"><button class="portal-button primary od-send">${escapeHtml(d.ctaText||'Anfrage senden')}</button></div>
@@ -949,6 +969,13 @@
     return {amount:cents(fields.amount), image, logo, details,
       name:fields.name.trim(), category:fields.category, description:fields.description.trim(),
       terms:(fields.terms||'').trim(), url:(fields.url||'').trim()};
+  }
+
+  async function refreshTeamInquiries() {
+    if (document.querySelector('#portal-root')?.dataset.portalPage!=='team') return;
+    try { await loadSharedRecords('team'); } catch { return; }
+    currentTeamTab='offers';
+    renderTeam(currentTeamId);
   }
 
   async function handleForm(form) {
@@ -1144,11 +1171,13 @@
       if (window.zfcSupabase) {
         const { error } = await window.zfcSupabase.functions.invoke('public-purchase', {body:{offerId:offer.id,teamId:fields.teamId,contactName:fields.contactName,email,company:fields.company||'',billingAddress:fields.billingAddress||'',notes}});
         if (error) throw new Error('Anfrage konnte nicht gesendet werden. Bitte später erneut versuchen.');
-        form.closest('dialog')?.close(); form.reset(); showToast('Anfrage wurde an die Verwaltung gesendet.');
+        form.closest('dialog')?.close(); form.reset();
+        await refreshTeamInquiries();
+        showToast('Anfrage wurde an die Verwaltung gesendet.');
         return;
       }
       data.orders.push({id:uid(),offerId:offer.id,offerName:offer.name,category:offer.category||'sponsoring',terms:offer.terms||'',amount:offer.amount,teamId:fields.teamId,contactName:fields.contactName.trim(),email,company:(fields.company||'').trim(),billingAddress:(fields.billingAddress||'').trim(),notes,status:'pending',createdAt:new Date().toISOString()});
-      if (save()) { form.closest('dialog')?.close(); form.reset(); showToast('Anfrage wurde als Sponsoren-Akte vorgemerkt.'); }
+      if (save()) { form.closest('dialog')?.close(); form.reset(); await refreshTeamInquiries(); showToast('Anfrage wurde als Sponsoren-Akte vorgemerkt.'); }
     }
   }
 
@@ -1294,17 +1323,20 @@
       data.tickets = ticketRows.map(mapTicket);
       adminProfiles = profileRows;
     } else if (page === 'team') {
-      const [{data:invoiceRows,error:invoiceError},{data:contractRows,error:contractError},{data:ticketRows,error:ticketError}] = await Promise.all([
+      const [{data:invoiceRows,error:invoiceError},{data:contractRows,error:contractError},{data:ticketRows,error:ticketError},{data:orderRows,error:orderError}] = await Promise.all([
         window.zfcSupabase.from('invoices').select('*').eq('team_id', selectedTeamId).order('created_at', {ascending:false}),
         window.zfcSupabase.from('contracts').select('*').eq('team_id',selectedTeamId).order('created_at',{ascending:false}),
-        window.zfcSupabase.from('support_tickets').select('*').eq('team_id',selectedTeamId).order('created_at',{ascending:false})
+        window.zfcSupabase.from('support_tickets').select('*').eq('team_id',selectedTeamId).order('created_at',{ascending:false}),
+        window.zfcSupabase.from('sponsor_orders').select('*').eq('team_id',selectedTeamId).order('created_at',{ascending:false})
       ]);
       if (invoiceError) throw invoiceError;
       if (contractError) throw contractError;
       if (ticketError) throw ticketError;
+      if (orderError) throw orderError;
       data.invoices = invoiceRows.map(mapInvoice);
       data.contracts=contractRows.map(mapContract);
       data.tickets=ticketRows.map(mapTicket);
+      data.orders=orderRows.map(mapOrder);
     }
   }
 
@@ -1350,7 +1382,7 @@
     const userIsEditing = () => document.querySelector('dialog[open]') ||
       document.activeElement?.matches?.('input,textarea,select');
     let notify = false;
-    const snapshot = () => JSON.stringify([data.offers,data.invoices,data.contracts,data.bookings,data.tickets,data.cards,data.cardRequests,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
+    const snapshot = () => JSON.stringify([data.offers,data.orders,data.invoices,data.contracts,data.bookings,data.tickets,data.cards,data.cardRequests,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
     const refresh = async () => {
       if (busy) { again = true; return; }
       if (userIsEditing()) { timer = setTimeout(refresh, 2000); return; }
@@ -1591,6 +1623,13 @@
         ticket.status=ticketButton.dataset.nextStatus;
         if(save()){renderAdminTab('tickets');showToast('Meldungsstatus aktualisiert.');}
       }
+      return;
+    }
+    const teamInquire = event.target.closest('[data-team-inquire]');
+    if (teamInquire) {
+      const offer = data.offers.find(item=>item.id===teamInquire.dataset.teamInquire);
+      const dialog = $('#record-editor');
+      if (offer && dialog) { dialog.innerHTML = teamInquiryForm(offer, currentTeamId); dialog.showModal(); }
       return;
     }
     const teamTab = event.target.closest('[data-team-tab]');

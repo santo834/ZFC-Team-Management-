@@ -57,7 +57,7 @@
   }
 
   async function readProfile(userId) {
-    const { data, error } = await client.from('profiles').select('id,display_name,role,team_id').eq('id', userId).single();
+    const { data, error } = await client.from('profiles').select('id,email,display_name,role,team_id').eq('id', userId).single();
     if (error) throw error;
     if (data.role === 'konzern') {
       const { data: links, error: linkError } = await client.from('konzern_teams').select('team_id').eq('profile_id', userId);
@@ -70,7 +70,17 @@
   async function authorizePortal() {
     const root = document.querySelector('#portal-root');
     const activeClient = await clientReady;
-    if (!root) return { configured: Boolean(activeClient), profile: null };
+    if (!root) {
+      if (activeClient) {
+        try {
+          const { data: { session } } = await activeClient.auth.getSession();
+          if (session) window.zfcProfile = await readProfile(session.user.id);
+        } catch {
+          window.zfcProfile = null;
+        }
+      }
+      return { configured: Boolean(activeClient), profile: window.zfcProfile };
+    }
     if (!activeClient) {
       showPortalError(root, clientError || 'Supabase-Client ist nicht verfügbar.');
       return null;
