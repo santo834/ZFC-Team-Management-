@@ -782,7 +782,7 @@
         <button class="portal-button" type="button" data-close-editor>Abbrechen</button>
         <button class="portal-button" type="button" data-wizard-back disabled>Zurück</button>
         <button class="portal-button primary" type="button" data-wizard-next>Weiter</button>
-        <button class="portal-button primary" type="submit" data-wizard-submit hidden>Zur Finanzüberprüfung senden</button>
+        <button class="portal-button primary" type="submit" data-wizard-submit hidden disabled>Zur Finanzüberprüfung senden</button>
       </div>
     </form>`;
   }
@@ -800,7 +800,10 @@
     const submit = form.querySelector('[data-wizard-submit]');
     if (back) back.disabled = step===1;
     if (next) next.hidden = step===3;
-    if (submit) submit.hidden = step!==3;
+    if (submit) {
+      submit.hidden = step!==3;
+      submit.disabled = step!==3 || !form.querySelector('[name="confirm"]')?.checked;
+    }
     if (step===3) {
       const fields = Object.fromEntries(new FormData(form));
       const driver = data.drivers.find(entry=>entry.id===fields.driverId);
@@ -2249,6 +2252,11 @@
     if (event.target.matches('form[data-form="driver-contract"] select[name="driverId"]')) {
       const wrap = event.target.form.querySelector('[data-new-driver-fields]');
       if (wrap) wrap.hidden = Boolean(event.target.value);
+      return;
+    }
+    if (event.target.matches('form[data-form="driver-contract"] [name="confirm"]')) {
+      const submit = event.target.form.querySelector('[data-wizard-submit]');
+      if (submit) submit.disabled = !event.target.checked;
       return;
     }
     if (event.target.matches('form[data-form="contract"] select[name="type"]')) {

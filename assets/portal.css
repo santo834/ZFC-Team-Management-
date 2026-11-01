@@ -327,6 +327,7 @@ img.portal-team-mark{object-fit:contain;padding:4px;background:#ffffff14;border:
 .wizard-confirm{grid-column:1/-1;display:flex;flex-direction:row;align-items:flex-start;gap:10px}
 .wizard-confirm input{width:auto;margin-top:3px}
 .wizard-nav{justify-content:flex-end}
+.wizard-nav [hidden]{display:none!important}
 .review-card{border-color:#39efff66;box-shadow:0 0 24px #39efff14}
 
 /* Fahrerhelm-Button und Vertrags-Seitenfenster */
