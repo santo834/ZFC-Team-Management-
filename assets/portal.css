@@ -329,10 +329,52 @@ img.portal-team-mark{object-fit:contain;padding:4px;background:#ffffff14;border:
 .wizard-nav{justify-content:flex-end}
 .review-card{border-color:#39efff66;box-shadow:0 0 24px #39efff14}
 
+/* Fahrerhelm-Button und Vertrags-Seitenfenster */
+.helmet-btn{display:grid;place-items:center;width:38px;height:38px;padding:0;border:1px solid #39efff55;border-radius:10px;background:linear-gradient(135deg,#39efff14,#e51e2a14),#0f141c;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
+.helmet-btn svg{width:22px;height:22px;fill:#39efff}
+.helmet-btn:hover{transform:translateY(-1px);box-shadow:0 0 14px #39efff44}
+.contract-drawer{position:fixed;top:0;right:0;bottom:0;z-index:900;width:min(460px,100vw);background:var(--portal-panel);border-left:1px solid #39efff40;box-shadow:-24px 0 60px #000c;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s ease}
+.contract-drawer.open{transform:translateX(0)}
+.cd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px;border-bottom:1px solid #ffffff14}
+.cd-title{display:flex;gap:12px;align-items:center;min-width:0}
+.cd-title strong{display:block;overflow-wrap:anywhere}
+.cd-title small{color:var(--portal-muted)}
+.cd-helmet{display:grid;place-items:center;flex:0 0 auto;width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#39efff22,#e51e2a22),#0f141c;border:1px solid #39efff55}
+.cd-helmet svg{width:26px;height:26px;fill:#39efff}
+.cd-body{padding:18px;overflow-y:auto;display:grid;gap:14px;align-content:start}
+.cd-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}
+.cd-meta>div{border:1px solid #ffffff14;border-radius:8px;padding:8px 10px}
+.cd-meta dt{color:var(--portal-muted);font-size:11px}
+.cd-meta dd{margin:2px 0 0;font-weight:600}
+.cd-body h4{margin:6px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--portal-muted)}
+.cd-terms{white-space:pre-wrap;margin:0;border-left:3px solid #39efff;background:#ffffff06;padding:10px 12px;border-radius:0 8px 8px 0}
+.cd-signatures{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px}
+.cd-script{font-family:'Segoe Script','Brush Script MT','Lucida Handwriting',cursive;font-size:22px;color:#9db4ff;transform:rotate(-2deg);margin:0 0 2px 4px;overflow-wrap:anywhere}
+.cd-signed-meta{font-size:10px;color:var(--portal-muted);margin:0 0 6px 4px}
+.cd-signature-line{border-top:1px solid #ffffff55;padding-top:6px;font-size:11px;color:var(--portal-muted)}
+
+/* Invoice-Shortcut: Fixpreis-Liste */
+.quick-price-group{display:grid;gap:8px}
+.quick-price-group>strong{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--portal-muted)}
+.quick-price-list{display:grid;gap:6px}
+.quick-price{display:flex!important;flex-direction:row;align-items:center;gap:10px;padding:9px 12px;border:1px solid #ffffff1a;border-radius:8px;background:#ffffff05;cursor:pointer;font-size:13px!important;color:var(--portal-text)!important}
+.quick-price:hover{border-color:#39efff66}
+.quick-price input{width:auto!important;min-width:0!important;padding:0!important}
+.quick-price span{flex:1}
+.quick-price b{white-space:nowrap;color:#c7f36b}
+.quick-price:has(input:checked){border-color:#c7f36b;background:#c7f36b14}
+
+/* Race-Week-Info im E-Banking */
+.eb-raceweek-total{display:grid;gap:2px;margin-top:14px;padding:16px;border:1px solid #39efff44;border-radius:12px;background:linear-gradient(135deg,#39efff10,#e51e2a10)}
+.eb-raceweek-total small{color:var(--portal-muted);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+.eb-raceweek-total strong{font-size:26px;color:var(--portal-text)}
+.eb-raceweek-total span{color:var(--portal-muted);font-size:12px}
+
 @media(max-width:740px){
   .admin-shell .portal-topbar{margin:-18px -15px 4px;padding:14px 15px}
   .admin-shell .portal-nav button.active::before{display:none}
   .contract-extra{grid-template-columns:1fr}
   .wizard-panel,.wizard-grid{grid-template-columns:1fr}
   .wizard-steps{flex-direction:column}
+  .cd-signatures{grid-template-columns:1fr}
 }

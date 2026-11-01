@@ -205,6 +205,54 @@
   }
 
   const CARD_DESIGNS = {basic:'Basis Grün',sunset:'Sunset',aurora:'Aurora',carbon:'Carbon',gold:'Gold',ocean:'Ocean'};
+
+  // Fixpreise für den Invoice-Shortcut im Admin-Panel (Beträge in EUR).
+  const FIXED_PRICE_GROUPS = [
+    {title:'Gebühren & Rennwochenende', items:[
+      {label:'Renn-Teilnahme (Teilnahmegebühr)', amount:100000},
+      {label:'Fahrzeugtransport', amount:150000},
+      {label:'Reise & Unterkunft', amount:60000},
+      {label:'Garagen- & Paddockgebühr', amount:50000},
+      {label:'Fahrzeugwartung (zwei Autos)', amount:100000},
+      {label:'Reifenpaket (pro Auto)', amount:30000}
+    ]},
+    {title:'Einkauf & Ersatzteile', items:[
+      {label:'Neuer Frontflügel', amount:150000},
+      {label:'Neuer Heckflügel', amount:200000},
+      {label:'Unterboden ersetzen', amount:400000},
+      {label:'Aufhängung reparieren', amount:175000},
+      {label:'Chassis ersetzen', amount:2000000},
+      {label:'Fahrzeugbergung', amount:62500},
+      {label:'Expresslieferung von Ersatzteilen', amount:75000},
+      {label:'Privater Testtag', amount:150000},
+      {label:'Fahrerwechsel bearbeiten', amount:50000},
+      {label:'Ersatzfahrer einsetzen (zzgl. Vergütung)', amount:25000}
+    ]}
+  ];
+
+  // Geschätzte Richtwerte für das Team-E-Banking (keine offiziellen Preise).
+  const RACE_WEEK_ESTIMATES = [
+    {title:'Fixkosten & Gebühren', items:[
+      ['Teilnahme am Rennwochenende','ca. 100.000 € pro Team'],
+      ['Fahrzeugtransport (Autos & Ersatzteile)','ca. 150.000 €'],
+      ['Reise & Unterkunft des Teams','ca. 60.000 €'],
+      ['Garagen- & Paddockgebühr','ca. 50.000 €'],
+      ['Fahrzeugwartung (zwei Autos)','ca. 100.000 €'],
+      ['Reifenpaket','ca. 30.000 € pro Auto']
+    ]},
+    {title:'Mögliche Zusatzkosten bei Vorfällen', items:[
+      ['Neuer Frontflügel','ca. 150.000 €'],
+      ['Neuer Heckflügel','ca. 200.000 €'],
+      ['Unterboden ersetzen','ca. 400.000 €'],
+      ['Aufhängung reparieren','ca. 100.000 – 250.000 €'],
+      ['Chassis ersetzen','ca. 2.000.000 €'],
+      ['Fahrzeugbergung','ca. 25.000 – 100.000 €'],
+      ['Expresslieferung von Ersatzteilen','ca. 75.000 €'],
+      ['Privater Testtag','ca. 150.000 €'],
+      ['Fahrerwechsel bearbeiten','ca. 50.000 €'],
+      ['Ersatzfahrer einsetzen','ca. 25.000 € zzgl. Vergütung']
+    ]}
+  ];
   const MAX_CARDS_PER_TEAM = 3;
 
   function ensureLocalBasicCards() {
@@ -285,6 +333,7 @@
     ebanking:'<path d="M3 21h18"/><path d="M4 10h16"/><path d="M12 3l9 6H3l9-6z"/><path d="M6 10v11M18 10v11M10 14v4M14 14v4"/>',
     finance:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/>',
     contracts:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>',
+    teamcontracts:'<path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/>',
     cards:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>',
     accounts:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     tickets:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>'
@@ -292,14 +341,14 @@
 
   function layout(active, content, title='Admin Control Center') {
     const navigation = [
-      ['overview','Übersicht'],['content','Startseite & Galaxy'],['offers','Angebote'],['orders','Kaufanfragen'],['ebanking','Team-E-Banking'],['finance','Teamkonten & Rechnungen'],['contracts','Verträge'],['cards','Kreditkarten'],['accounts','Benutzer & Rollen'],['tickets','Probleme & Meldungen']
+      ['overview','Übersicht'],['content','Startseite & Galaxy'],['offers','Angebote'],['orders','Kaufanfragen'],['ebanking','Team-E-Banking'],['finance','Teamkonten & Rechnungen'],['contracts','Verträge'],['teamcontracts','Team-Verträge'],['cards','Kreditkarten'],['accounts','Benutzer & Rollen'],['tickets','Probleme & Meldungen']
     ];
     const navButton = ([key,label]) => `<button type="button" data-admin-tab="${key}" class="${active===key?'active':''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ADMIN_ICONS[key]||''}</svg><span>${label}</span></button>`;
     return `<div class="portal-shell admin-shell"><aside class="portal-sidebar">
       <a class="portal-brand" href="../index.html"><span class="portal-brand-mark">Z</span><span><strong>ZFC</strong><small>TEAM MANAGEMENT</small></span></a>
       <div class="portal-label">Arbeitsbereich</div><nav class="portal-nav" aria-label="Admin Navigation">${navigation.map(navButton).join('')}</nav>
       <div class="portal-side-note">Admin Control Center<br><a href="../index.html">← Zur öffentlichen Website</a></div>
-    </aside><main class="portal-main"><div class="portal-topbar"><div><strong>${escapeHtml(title)}</strong><br><small>Verwaltung · Saison 2026</small></div><div class="portal-actions">${window.zfcSupabase?'':'<span class="portal-badge pending">Lokale Demo</span>'}<button class="portal-button" type="button" data-sign-out>Abmelden</button></div></div>${content}</main><dialog class="portal-dialog" id="record-editor"></dialog><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
+    </aside><main class="portal-main"><div class="portal-topbar"><div><strong>${escapeHtml(title)}</strong><br><small>Verwaltung · Saison 2026</small></div><div class="portal-actions">${window.zfcSupabase?'':'<span class="portal-badge pending">Lokale Demo</span>'}<button class="portal-button" type="button" data-sign-out>Abmelden</button></div></div>${content}</main><dialog class="portal-dialog" id="record-editor"></dialog><aside class="contract-drawer" id="contract-drawer" hidden></aside><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
 
   function editorControl(label, name, value, type='text', options=[]) {
@@ -389,7 +438,7 @@
       <div class="portal-grid"><article class="portal-card"><div class="portal-label-text">Anfangssaldo</div><div class="portal-stat">${money(summary.opening)}</div></article><article class="portal-card"><div class="portal-label-text">Einnahmen</div><div class="portal-stat">${money(summary.income)}</div></article><article class="portal-card"><div class="portal-label-text">Ausgaben</div><div class="portal-stat">${money(summary.expenses)}</div></article><article class="portal-card"><div class="portal-label-text">Endsaldo</div><div class="portal-stat">${money(summary.closing)}</div></article></div></section>`;
   }
 
-  const DOC_STYLE = `@page{size:A4;margin:18mm 16mm}*{box-sizing:border-box}body{font:13px/1.55 'Helvetica Neue',Arial,sans-serif;color:#1c1f23;margin:0;padding:0}.sheet{max-width:780px;margin:0 auto;padding:34px 40px}.letterhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #101418;padding-bottom:18px}.brand{display:flex;gap:12px;align-items:center}.brand-mark{width:44px;height:44px;border-radius:9px;background:#101418;color:#c7f36b;font-weight:800;font-size:24px;display:flex;align-items:center;justify-content:center}.brand strong{display:block;font-size:16px;letter-spacing:.04em}.brand small{color:#666;letter-spacing:.12em;font-size:10px}.doc-meta{text-align:right;font-size:12px;color:#444}.doc-meta b{color:#101418}h1{font-size:26px;margin:28px 0 4px;letter-spacing:-.01em}.subtitle{color:#666;margin:0 0 22px}h2{font-size:14px;margin:24px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:#101418}.parties{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:18px 0}.party{border:1px solid #d9dde2;border-radius:6px;padding:12px 14px}.party small{display:block;color:#777;text-transform:uppercase;letter-spacing:.08em;font-size:10px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin:10px 0}th{background:#101418;color:#fff;text-align:left;padding:8px 10px;font-size:11px;letter-spacing:.05em;text-transform:uppercase}td{padding:9px 10px;border-bottom:1px solid #e3e6ea;vertical-align:top}td.num,th.num{text-align:right;white-space:nowrap}tr.sum td{font-weight:700;border-top:2px solid #101418;background:#f4f6f8}.clause{margin:0 0 10px;text-align:justify}.terms{white-space:pre-wrap;border-left:3px solid #c7f36b;background:#f7f9f4;padding:10px 14px}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:70px}.signatures div{border-top:1px solid #101418;padding-top:6px;font-size:12px;color:#444}.note{margin-top:30px;color:#777;font-size:11px;border-top:1px solid #e3e6ea;padding-top:10px}.footer{margin-top:30px;color:#777;font-size:10px;text-align:center;letter-spacing:.04em}.print-bar{position:sticky;top:0;background:#101418;padding:10px;text-align:center}.print-bar button{font:600 13px Arial;padding:8px 18px;border:0;border-radius:6px;background:#c7f36b;cursor:pointer}@media print{.print-bar{display:none}.sheet{padding:0}}`;
+  const DOC_STYLE = `@page{size:A4;margin:18mm 16mm}*{box-sizing:border-box}body{font:13px/1.55 'Helvetica Neue',Arial,sans-serif;color:#1c1f23;margin:0;padding:0}.sheet{max-width:780px;margin:0 auto;padding:34px 40px}.letterhead{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #101418;padding-bottom:18px}.brand{display:flex;gap:12px;align-items:center}.brand-mark{width:44px;height:44px;border-radius:9px;background:#101418;color:#c7f36b;font-weight:800;font-size:24px;display:flex;align-items:center;justify-content:center}.brand strong{display:block;font-size:16px;letter-spacing:.04em}.brand small{color:#666;letter-spacing:.12em;font-size:10px}.doc-meta{text-align:right;font-size:12px;color:#444}.doc-meta b{color:#101418}h1{font-size:26px;margin:28px 0 4px;letter-spacing:-.01em}.subtitle{color:#666;margin:0 0 22px}h2{font-size:14px;margin:24px 0 6px;text-transform:uppercase;letter-spacing:.06em;color:#101418}.parties{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:18px 0}.party{border:1px solid #d9dde2;border-radius:6px;padding:12px 14px}.party small{display:block;color:#777;text-transform:uppercase;letter-spacing:.08em;font-size:10px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin:10px 0}th{background:#101418;color:#fff;text-align:left;padding:8px 10px;font-size:11px;letter-spacing:.05em;text-transform:uppercase}td{padding:9px 10px;border-bottom:1px solid #e3e6ea;vertical-align:top}td.num,th.num{text-align:right;white-space:nowrap}tr.sum td{font-weight:700;border-top:2px solid #101418;background:#f4f6f8}.clause{margin:0 0 10px;text-align:justify}.terms{white-space:pre-wrap;border-left:3px solid #c7f36b;background:#f7f9f4;padding:10px 14px}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:70px}.signatures .signature-line{border-top:1px solid #101418;padding-top:6px;font-size:12px;color:#444}.signature-script{font-family:'Segoe Script','Brush Script MT','Lucida Handwriting',cursive;font-size:26px;color:#1c2f6e;transform:rotate(-2deg);margin:0 0 2px 6px}.signature-meta{font-size:10px;color:#777;margin:0 0 6px 6px}.note{margin-top:30px;color:#777;font-size:11px;border-top:1px solid #e3e6ea;padding-top:10px}.footer{margin-top:30px;color:#777;font-size:10px;text-align:center;letter-spacing:.04em}.print-bar{position:sticky;top:0;background:#101418;padding:10px;text-align:center}.print-bar button{font:600 13px Arial;padding:8px 18px;border:0;border-radius:6px;background:#c7f36b;cursor:pointer}@media print{.print-bar{display:none}.sheet{padding:0}}`;
 
   function openDocument(title, number, bodyHtml, dateText=date(new Date())) {
     const printWindow = window.open('', '_blank', 'width=900,height=1000');
@@ -413,14 +462,53 @@
   function contractPrint(contract) {
     const team = teams.find(entry=>entry.id===contract.teamId);
     const clauses = (CONTRACT_CLAUSES[contract.type]||CONTRACT_CLAUSES.vehicle).map((text,index)=>`<h2>§ ${index+2}</h2><p class="clause">${escapeHtml(text)}</p>`).join('');
-    const statusText = {pending:'Zur Prüfung',signed:'Angenommen',declined:'Abgelehnt',terminated:'Beendet'}[contract.status] || contract.status;
+    const statusText = {pending:'Zur Prüfung',in_review:'Finanzprüfung',signed:'Angenommen',declined:'Abgelehnt',terminated:'Beendet'}[contract.status] || contract.status;
+    const signed = contract.status==='signed';
+    const signedDate = contract.acceptedAt ? date(contract.acceptedAt) : date(new Date());
+    const signatureBlock = (label, name) => `<div class="signature">${signed?`<div class="signature-script">${escapeHtml(name)}</div><div class="signature-meta">Digital unterzeichnet · ${escapeHtml(signedDate)}</div>`:''}<div class="signature-line">${escapeHtml(label)}</div></div>`;
     openDocument(contractTypeName(contract.type), contractNumber(contract), `<h1>${escapeHtml(contract.title)}</h1><p class="subtitle">${escapeHtml(contractTypeName(contract.type))} · Status: ${escapeHtml(statusText)}</p>
       <div class="parties"><div class="party"><small>Vertragspartei A</small><strong>ZFC · Zenith Formula Championship</strong><br>vertreten durch die Verwaltung</div><div class="party"><small>Vertragspartei B</small><strong>${escapeHtml(team?.name||'Team')}</strong><br>vertreten durch die Teamleitung</div></div>
       <h2>§ 1 Vertragsgegenstand</h2><p class="clause">Dieser ${escapeHtml(contractTypeName(contract.type))} regelt die Rechte und Pflichten der Parteien in der Saison 2026 und gilt bis zum ${escapeHtml(date(contract.endDate))}.</p>${clauses}
       <h2>Individuelle Konditionen</h2><div class="terms">${escapeHtml(contract.terms)}</div>
       <h2>§ 5 Laufzeit und Schlussbestimmungen</h2><p class="clause">Der Vertrag endet am ${escapeHtml(date(contract.endDate))}, sofern er nicht vorzeitig einvernehmlich beendet wird. Änderungen bedürfen der Textform. Sollte eine Bestimmung unwirksam sein, bleibt der Vertrag im Übrigen wirksam.</p>
-      <div class="signatures"><div>Ort, Datum · ZFC Verwaltung</div><div>Ort, Datum · ${escapeHtml(team?.name||'Team')}</div></div>
-      <p class="note">Vertragsentwurf. Die Annahme im Portal ersetzt keine rechtsgültige Unterschrift; vor Verwendung rechtlich prüfen lassen.</p>`, date(contract.createdAt||new Date()));
+      <div class="signatures">${signatureBlock('ZFC Verwaltung','ZFC Verwaltung')}${signatureBlock(`Teamchef · ${team?.name||'Team'}`, `Teamchef ${team?.name||'Team'}`)}</div>
+      <p class="note">${signed?'Dieser Vertrag wurde nach der Finanzprüfung durch die ZFC-Verwaltung bestätigt und digital von beiden Parteien unterzeichnet.':'Vertragsentwurf. Die Annahme im Portal ersetzt keine rechtsgültige Unterschrift; vor Verwendung rechtlich prüfen lassen.'}</p>`, date(contract.createdAt||new Date()));
+  }
+
+  function openContractDrawer(contract) {
+    const drawer = $('#contract-drawer');
+    if (!drawer) return;
+    const team = teams.find(entry=>entry.id===contract.teamId);
+    const driver = data.drivers.find(entry=>entry.id===contract.driverId);
+    const signed = contract.status==='signed';
+    const signedDate = contract.acceptedAt ? date(contract.acceptedAt) : date(new Date());
+    const signatureBlock = (label, name) => `<div class="cd-signature">${signed?`<div class="cd-script">${escapeHtml(name)}</div><div class="cd-signed-meta">Digital unterzeichnet · ${escapeHtml(signedDate)}</div>`:''}<div class="cd-signature-line">${escapeHtml(label)}</div></div>`;
+    drawer.innerHTML = `<div class="cd-head">
+        <div class="cd-title"><span class="cd-helmet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></span><div><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · ${escapeHtml(team?.name||'')}${driver?` · ${escapeHtml(driver.name)}`:''}</small></div></div>
+        <div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" type="button" data-print-contract="${contract.id}">PDF</button><button class="portal-button" type="button" data-close-contract-drawer aria-label="Schliessen">×</button></div>
+      </div>
+      <div class="cd-body">
+        <dl class="cd-meta">
+          <div><dt>Vertragsnummer</dt><dd>${escapeHtml(contractNumber(contract))}</dd></div>
+          <div><dt>Gültig bis</dt><dd>${escapeHtml(date(contract.endDate))}</dd></div>
+          <div><dt>Eingereicht</dt><dd>${escapeHtml(date(contract.createdAt))}</dd></div>
+          ${signed?`<div><dt>Bestätigt</dt><dd>${escapeHtml(signedDate)}</dd></div>`:''}
+        </dl>
+        <h4>Konditionen</h4>
+        <p class="cd-terms">${escapeHtml(contract.terms)}</p>
+        <h4>Unterschriften</h4>
+        <div class="cd-signatures">${signatureBlock('ZFC Verwaltung','ZFC Verwaltung')}${signatureBlock(`Teamchef · ${team?.name||'Team'}`, `Teamchef ${team?.name||'Team'}`)}</div>
+        ${signed?'':'<p class="eb-muted">Die Unterschriften erscheinen, sobald die Verwaltung die Finanzprüfung bestätigt hat.</p>'}
+      </div>`;
+    drawer.hidden = false;
+    requestAnimationFrame(()=>drawer.classList.add('open'));
+  }
+
+  function closeContractDrawer() {
+    const drawer = $('#contract-drawer');
+    if (!drawer || drawer.hidden) return;
+    drawer.classList.remove('open');
+    setTimeout(()=>{ drawer.hidden = true; drawer.innerHTML=''; }, 250);
   }
 
   function statementPrint(teamId, month) {
@@ -516,7 +604,7 @@
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-edit-record="invoice" data-record-id="${invoice.id}">Bearbeiten</button><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Terminierte Rechnungen</h2><p class="portal-muted">Von Teams vorbereitete automatisierte Rechnungen. Nach der manuellen Aufschaltung erscheinen sie am Rechnungsdatum automatisch im E-Banking des Teams. Bei Bedarf können sie gelöscht werden, z. B. wenn ein Team nicht antreten kann.</p><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Beschreibung</th><th>Team</th><th>Betrag</th><th>Rechnungsdatum</th><th>Fällig</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.scheduledInvoices.length?data.scheduledInvoices.slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate)).map(item=>{const linked=data.invoices.find(invoice=>invoice.id===item.invoiceId);return `<tr><td>${escapeHtml(item.description)}</td><td>${escapeHtml(teamName(item.teamId))}</td><td>${money(item.amount)}</td><td>${date(item.sendDate)}</td><td>${date(item.dueDate)}</td><td>${statusBadge(item.status)}</td><td><div class="portal-actions">${item.status==='pending'?`<button class="portal-button primary" data-activate-scheduled="${item.id}">Aufschalten</button>`:''}${linked?`<button class="portal-button" data-print-invoice="${linked.id}">PDF</button>`:''}<button class="portal-button danger" data-delete-scheduled="${item.id}">Löschen</button></div></td></tr>`;}).join(''):'<tr><td colspan="7" class="portal-empty">Keine terminierten Rechnungen vorhanden.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><div class="portal-actions"><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a><button class="portal-button primary" type="button" data-quick-invoice="${team.id}">Invoice Shortcut</button></div></article>`).join('')}</div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card reset-card" style="margin-top:15px"><h2>Daten zurücksetzen</h2>
           <p class="portal-muted">Löscht alle Rechnungen, Kontobuchungen, Kaufanfragen, Verträge, Tickets und Kredit-Anträge und setzt die Teamkonten (inkl. Startkapital) auf 0 zurück. Karten bleiben bestehen. Das kann nicht rückgängig gemacht werden, z. B. für den Start einer neuen Saison.</p>
@@ -533,12 +621,20 @@
           <label>Gültig bis<input name="endDate" type="date" required></label><div class="portal-actions"><button class="portal-button primary">Zur Prüfung senden</button></div>
         </form></section><section class="portal-card"><h2>Hinweis</h2><p>Das Formular passt sich der gewählten Vertragsart an: Sobald du eine Vertragsart auswählst, erscheinen die passenden Eingabefelder und die Konditionen werden automatisch vorbereitet.</p><p>Die Annahme im Demo-Portal ist keine rechtsverbindliche elektronische Signatur. Vor echten Vereinbarungen sind Backend, Identitätsprüfung und rechtliche Dokumente erforderlich.</p></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Vertragsübersicht</h2><div class="portal-item-list">${data.contracts.length?data.contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · ${escapeHtml(teamName(contract.teamId))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
+    } else if (tab==='teamcontracts') {
+      const teamContracts = data.contracts.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+      const row = contract => {
+        const driver = data.drivers.find(entry=>entry.id===contract.driverId);
+        return `<tr><td><strong>${escapeHtml(contract.title)}</strong><br><span class="portal-muted">${escapeHtml(contractTypeName(contract.type))}${driver?` · Fahrer: ${escapeHtml(driver.name)}`:''} · gültig bis ${date(contract.endDate)} · erstellt ${date(contract.createdAt)}<br>${escapeHtml(contract.terms)}</span></td><td>${escapeHtml(teamName(contract.teamId))}</td><td>${statusBadge(contract.status)}</td><td><div class="portal-actions">${contract.type==='driver'?`<button class="helmet-btn" type="button" data-open-contract="${contract.id}" title="Vertrag im Seitenfenster öffnen" aria-label="Vertrag ${escapeHtml(contract.title)} öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></button>`:''}<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button><button class="portal-button danger" data-delete-contract="${contract.id}">Löschen</button></div></td></tr>`;
+      };
+      content = `${heading('Team-Verwaltung','Team-Verträge','Alle Verträge der Teams – inklusive der von Teamchefs eingereichten Fahrerverträge – direkt bearbeiten oder löschen.')}
+        <section class="portal-card"><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Vertrag</th><th>Team</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${teamContracts.length?teamContracts.map(row).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Verträge erfasst.</td></tr>'}</tbody></table></div></section>`;
     } else if (tab==='ebanking') {
       const team = teams.find(entry=>entry.id===adminTeamId) || teams[0];
       const teamContracts = data.contracts.filter(contract=>contract.teamId===team.id);
       const teamInvoices = data.invoices.filter(invoice=>invoice.teamId===team.id);
       content = `${heading('Team-E-Banking','Teamkonto verwalten','Verträge, Monatsabrechnung und Rechnungen des ausgewählten Teams an einem Ort.')}
-        <section class="portal-card"><label class="portal-label-text">Team auswählen<select class="portal-select" data-ebank-team>${teamOptions(team.id)}</select></label>
+        <section class="portal-card"><div class="eb-row-between"><label class="portal-label-text" style="flex:1">Team auswählen<select class="portal-select" data-ebank-team>${teamOptions(team.id)}</select></label><button class="portal-button primary" type="button" data-quick-invoice="${team.id}" style="align-self:end">Invoice Shortcut</button></div>
           <div class="portal-grid" style="margin-top:15px"><article class="portal-card"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt=""><strong>${escapeHtml(team.name)}</strong></div><h3 style="margin:14px 0 6px">Teamlogo anpassen</h3>${logoForm(team.id)}</article>
           <article class="portal-card"><div class="portal-label-text">Kontostand</div><div class="portal-stat">${money(balance(team.id))}</div></article>
           <article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${teamInvoices.filter(invoice=>!['paid','void'].includes(invoice.status)).length}</div></article>
@@ -627,6 +723,19 @@
       ${d.products.length?`<label class="full">Gewünschte ${escapeHtml(d.productsTitle||'Produkte')}<select name="products" multiple size="${Math.min(d.products.length,4)}">${d.products.map(product=>`<option value="${escapeHtml(product.title)}">${escapeHtml(product.title)}</option>`).join('')}</select><small class="portal-muted">Mehrfachauswahl mit Ctrl / Cmd möglich.</small></label>`:''}
       <label class="full">Nachricht (optional)<textarea name="notes" maxlength="1000" placeholder="Zusätzliche Informationen oder spezielle Anforderungen…"></textarea></label>
       <div class="portal-actions full"><button class="portal-button primary">${escapeHtml(d.ctaText||'Anfrage senden')}</button><button class="portal-button" type="button" data-close-editor>Abbrechen</button></div>
+    </form>`;
+  }
+
+  function quickInvoiceForm(teamId) {
+    const defaultDue = new Date(Date.now()+30*86400000).toISOString().slice(0,10);
+    const groups = FIXED_PRICE_GROUPS.map(group=>`<div class="full quick-price-group"><strong>${escapeHtml(group.title)}</strong><div class="quick-price-list">${group.items.map(item=>`<label class="quick-price"><input type="checkbox" name="fixedPrice" value="${escapeHtml(item.label)}|${item.amount}"><span>${escapeHtml(item.label)}</span><b>${money(item.amount*100)}</b></label>`).join('')}</div></div>`).join('');
+    return `<form class="portal-form" data-form="quick-invoice">
+      <h2 class="full">Invoice Shortcut · ${escapeHtml(teamName(teamId))}</h2>
+      <input type="hidden" name="teamId" value="${escapeHtml(teamId)}">
+      <p class="portal-muted full">Wähle einen oder mehrere Fixpreise – sie werden als Positionen direkt als Rechnung an das Team gestellt.</p>
+      ${groups}
+      <label>Fällig am<input name="dueDate" type="date" value="${defaultDue}" required></label>
+      <div class="portal-actions full"><button class="portal-button primary">Rechnung erstellen</button><button class="portal-button" type="button" data-close-editor>Abbrechen</button></div>
     </form>`;
   }
 
@@ -750,7 +859,7 @@
     const requests = data.cardRequests.filter(request=>request.teamId===selected.id);
     const pendingRequest = requests.find(request=>request.status==='pending');
     const cardName = entry => cards.find(card=>card.id===entryCardId(entry))?.label || '–';
-    const tabs = [['account','Mein Konto'],['management','Team Verwaltung'],['offers','Angebote'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
+    const tabs = [['account','Mein Konto'],['management','Team Verwaltung'],['raceweek','Race Week'],['offers','Angebote'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
     const tab = tabs.some(([key])=>key===currentTeamTab) ? currentTeamTab : 'account';
     const txRow = entry => `<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td><span class="eb-pill">${escapeHtml(cardName(entry))}</span></td><td class="eb-num ${entry.direction==='credit'?'eb-plus':'eb-minus'}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`;
     const txTable = (rows,empty='Noch keine Buchungen vorhanden.') => `<div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Karte</th><th class="eb-num">Betrag</th></tr></thead><tbody>${rows.length?rows.map(txRow).join(''):`<tr><td colspan="4" class="portal-empty">${empty}</td></tr>`}</tbody></table></div>`;
@@ -781,7 +890,7 @@
       const driverContracts = contracts.filter(contract=>contract.type==='driver').slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
       const scheduled = data.scheduledInvoices.filter(item=>item.teamId===selected.id).slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate));
       const driverRow = driver => `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(driver.name)}</strong><small>${driver.number!=null?`Startnummer ${driver.number} · `:''}${escapeHtml(driver.nationality||'Nationalität offen')}${driver.license?` · Lizenz ${escapeHtml(driver.license)}`:''}</small></div><button class="portal-button" type="button" data-new-driver-contract="${driver.id}">Vertrag anlegen</button></div>`;
-      const contractRow = contract => { const driver=data.drivers.find(entry=>entry.id===contract.driverId); return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${driver?`${escapeHtml(driver.name)} · `:''}gültig bis ${date(contract.endDate)} · ${date(contract.createdAt)} eingereicht<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button></div></div>`; };
+      const contractRow = contract => { const driver=data.drivers.find(entry=>entry.id===contract.driverId); return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${driver?`${escapeHtml(driver.name)} · `:''}gültig bis ${date(contract.endDate)} · ${date(contract.createdAt)} eingereicht<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="helmet-btn" type="button" data-open-contract="${contract.id}" title="Vertrag im Seitenfenster öffnen" aria-label="Vertrag ${escapeHtml(contract.title)} öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></button><button class="portal-button" data-print-contract="${contract.id}">PDF</button></div></div>`; };
       const scheduledRow = item => `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(item.description)}</strong><small>${money(item.amount)} · Rechnungsdatum ${date(item.sendDate)} · fällig ${date(item.dueDate)}</small></div><div class="portal-actions">${statusBadge(item.status)}${['pending','active'].includes(item.status)?`<button class="portal-button danger" type="button" data-delete-scheduled="${item.id}">Löschen</button>`:''}</div></div>`;
       panel = `<section class="eb-card" id="team-verwaltung"><h3>Team Verwaltung</h3><p class="eb-muted">Lege deine Fahrer selbst an, erstelle Fahrerverträge im geführten Ablauf und sende sie der Verwaltung zur Finanzüberprüfung. Terminierte Rechnungen kannst du hier ebenfalls vorbereiten.</p></section>
       <div class="eb-two" style="margin-top:16px">
@@ -806,6 +915,14 @@
       <section class="eb-card" style="margin-top:16px"><h3>Terminierte Rechnungen</h3>
         ${scheduled.length?`<div class="portal-item-list">${scheduled.map(scheduledRow).join('')}</div>`:'<div class="portal-empty">Keine terminierten Rechnungen vorhanden.</div>'}
       </section>`;
+    } else if (tab==='raceweek') {
+      const estimateBlock = group => `<section class="eb-card"><h3>${escapeHtml(group.title)}</h3><div class="portal-item-list">${group.items.map(([label,cost])=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(label)}</strong></div><span class="eb-pill">${escapeHtml(cost)}</span></div>`).join('')}</div></section>`;
+      panel = `<section class="eb-card" id="race-week"><h3>Info zu deinem Race Week</h3>
+        <p class="eb-muted">Damit ihr ein Gefühl für die Grössenordnungen bekommt: Das ist eine grobe Schätzung, was ein Rennwochenende für ${escapeHtml(selected.name)} etwa kosten könnte. Es sind keine offiziellen Zahlen – die tatsächlichen Beträge werden euch jeweils separat in Rechnung gestellt.</p>
+        <div class="eb-raceweek-total"><small>Grobe Schätzung pro Rennwochenende</small><strong>ca. 0,5 – 1,0 Mio. €</strong><span>ohne Unfallschäden oder Sonderfälle</span></div>
+      </section>
+      <div class="eb-two" style="margin-top:16px">${RACE_WEEK_ESTIMATES.map(estimateBlock).join('')}</div>
+      <section class="eb-card" style="margin-top:16px"><h3>Hinweis</h3><p class="eb-muted">Alle Angaben sind unverbindliche Richtwerte als Vorgeschmack. Plant euer Budget mit Reserve – Schäden, Bergungen oder Fahrerwechsel können die Kosten deutlich erhöhen. Verbindlich sind ausschliesslich die Rechnungen der ZFC-Verwaltung.</p></section>`;
     } else if (tab==='transactions') {
       panel = `${statementSection(selected.id)}<section class="eb-card" style="margin-top:16px"><h3>Alle Kontobewegungen</h3>${txTable(bookings)}</section>`;
     } else if (tab==='cards') {
@@ -818,7 +935,7 @@
     } else if (tab==='invoices') {
       panel = `<section class="eb-card" id="rechnungen"><h3>Rechnungen</h3><div class="portal-item-list">${allInvoices.length?allInvoices.slice().reverse().map(invoice=>{const payCard=cards.find(card=>card.id===invoice.cardId);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}${invoice.status==='payment_requested'&&payCard?` · on hold auf ${escapeHtml(payCard.label)}`:''}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF / Drucken</button>${invoice.status==='open'?`<button class="eb-btn" data-request-payment="${invoice.id}">Jetzt bezahlen</button>`:''}</div></div>`;}).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>`;
     } else if (tab==='contracts') {
-      panel = `<section class="eb-card" id="vertraege"><h3>Verträge</h3><div class="portal-item-list">${contracts.length?contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="eb-btn" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section>`;
+      panel = `<section class="eb-card" id="vertraege"><h3>Verträge</h3><div class="portal-item-list">${contracts.length?contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}${contract.type==='driver'?`<button class="helmet-btn" type="button" data-open-contract="${contract.id}" title="Vertrag im Seitenfenster öffnen" aria-label="Vertrag ${escapeHtml(contract.title)} öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></button>`:''}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="eb-btn" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section>`;
     } else {
       panel = `<div class="eb-two"><section class="eb-card" id="meldungen"><h3>Problem oder Anliegen melden</h3><form class="portal-form" data-form="support-ticket">
           <input type="hidden" name="teamId" value="${selected.id}">
@@ -835,7 +952,7 @@
         <div class="eb-head-actions">${window.zfcProfile?.role==='konzern'&&(window.zfcProfile.konzern_teams||[]).length===2?(()=>{const other=teams.find(team=>team.id===window.zfcProfile.konzern_teams.find(id=>id!==selected.id));return other?`<button class="eb-btn" type="button" data-konzern-switch="${other.id}">⇄ Zu ${escapeHtml(other.name)} wechseln</button>`:'';})():''}${window.zfcSupabase?'<button class="eb-btn ghost" type="button" data-sign-out>Abmelden</button>':`<label class="eb-muted">Demo-Team <select class="portal-select" data-team-picker aria-label="Demo-Team auswählen">${teamOptions(selected.id)}</select></label>`}</div></header>
       <main class="eb-body">${panel}
         <div class="eb-note">${window.zfcSupabase?'Rechnungen, Karten und Kontobuchungen werden synchronisiert. Tatsächliche Überweisungen erfolgen außerhalb des Portals.':'Demo-Modus: Dieses Konto ist nicht geschützt. Änderungen und Daten gelten nur für diesen Browser und sind keine echten Banktransaktionen oder rechtsgültigen Signaturen.'}</div></main>
-    </div><dialog class="portal-dialog" id="record-editor"></dialog><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
+    </div><dialog class="portal-dialog" id="record-editor"></dialog><aside class="contract-drawer" id="contract-drawer" hidden></aside><div id="portal-toast" class="portal-toast" role="status" hidden></div></div>`;
   }
 
   function offerCardHtml(offer) {
@@ -1254,6 +1371,31 @@
         invoice = makeInvoice(fields.teamId,amount,description,fields.dueDate,fields.reference.trim(),null,{billToName:fields.billToName,billToEmail:fields.billToEmail,billToCompany:fields.billToCompany,billToAddress:fields.billToAddress},items);
       }
       if (save()) { renderAdminTab('finance'); showToast(`Rechnung ${invoice.number} erstellt.`); }
+    } else if (form.dataset.form==='quick-invoice') {
+      const teamId = fields.teamId;
+      if (!teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
+      const selected = new FormData(form).getAll('fixedPrice').map(value=>{
+        const [label,eur] = String(value).split('|');
+        return {description:label, amount:cents(eur)};
+      });
+      if (!selected.length) throw new Error('Bitte mindestens einen Fixpreis auswählen.');
+      if (!fields.dueDate) throw new Error('Bitte ein Fälligkeitsdatum angeben.');
+      const amount = selected.reduce((sum,item)=>sum+item.amount,0);
+      const description = selected.map(item=>item.description).join(' · ').slice(0,500);
+      let invoice;
+      if (window.zfcSupabase) {
+        const {data: row,error} = await window.zfcSupabase.from('invoices').insert({
+          team_id:teamId,invoice_number:invoiceNumber(),description,items:selected,amount_cents:amount,
+          due_date:fields.dueDate,reference:'',created_by:window.zfcProfile.id
+        }).select('*').single();
+        if (error) throw new Error(`Rechnung konnte nicht erstellt werden: ${error.message}`);
+        invoice=mapInvoice(row);data.invoices.unshift(invoice);
+      } else {
+        invoice = makeInvoice(teamId,amount,description,fields.dueDate,'',null,{},selected);
+      }
+      const dialog = form.closest('dialog');
+      if (dialog?.open) dialog.close();
+      if (save()) { renderAdminTab(currentAdminTab); showToast(`Rechnung ${invoice.number} für ${teamName(teamId)} erstellt.`); }
     } else if (form.dataset.form==='booking') {
       const amount = cents(fields.amount);
       const bookingCard = basicCard(fields.teamId);
@@ -1313,7 +1455,7 @@
         (fields.duties||'').trim() ? `Nebenpflichten: ${fields.duties.trim()}` : null,
         (fields.clauses||'').trim() ? `Zusätzliche Klauseln: ${fields.clauses.trim()}` : null
       ].filter(Boolean).join('\n');
-      let contract = {id:uid(),teamId,type:'driver',title:`Fahrervertrag ${driver.name}`,terms,endDate:fields.endDate,status:'in_review',driverId:driver.id,createdAt:new Date().toISOString()};
+      let contract = {id:uid(),teamId,type:'driver',title:`Fahrervertrag ${driver.name}`,terms,endDate:fields.endDate,status:'in_review',driverId:driver.id,acceptedAt:null,createdAt:new Date().toISOString()};
       if (window.zfcSupabase) {
         const {data:row,error} = await window.zfcSupabase.from('contracts').insert({team_id:teamId,type:'driver',title:contract.title,terms,starts_on:fields.startDate||null,ends_on:fields.endDate,status:'in_review',driver_id:driver.id,created_by:window.zfcProfile.id}).select('*').single();
         if (error) throw new Error(`Vertrag konnte nicht eingereicht werden: ${error.message}`);
@@ -1494,7 +1636,7 @@
   }
 
   function mapContract(row) {
-    return {id:row.id,teamId:row.team_id,type:row.type,title:row.title,terms:row.terms,endDate:row.ends_on,status:row.status,driverId:row.driver_id||null,createdAt:row.created_at};
+    return {id:row.id,teamId:row.team_id,type:row.type,title:row.title,terms:row.terms,endDate:row.ends_on,status:row.status,driverId:row.driver_id||null,acceptedAt:row.accepted_at||null,createdAt:row.created_at};
   }
 
   function mapDriver(row) {
@@ -1709,6 +1851,9 @@
     }
     const resetLogo = event.target.closest('[data-reset-logo]');
     if (resetLogo) { try { if (await storeTeamLogo(resetLogo.dataset.resetLogo,'')) { renderAdminTab('ebanking'); showToast('Standard-Logo wiederhergestellt.'); } } catch (error) { showToast(error.message,true); } return; }
+    const openContract = event.target.closest('[data-open-contract]');
+    if (openContract) { const item=data.contracts.find(entry=>entry.id===openContract.dataset.openContract); if(item) openContractDrawer(item); return; }
+    if (event.target.closest('[data-close-contract-drawer]')) { closeContractDrawer(); return; }
     const printContract = event.target.closest('[data-print-contract]');
     if (printContract) { const item=data.contracts.find(entry=>entry.id===printContract.dataset.printContract);if(item)contractPrint(item);return; }
     const printStatement = event.target.closest('[data-print-statement]');
@@ -1882,6 +2027,12 @@
       if (offer && dialog) { dialog.innerHTML = teamInquiryForm(offer, currentTeamId); dialog.showModal(); }
       return;
     }
+    const quickInvoice = event.target.closest('[data-quick-invoice]');
+    if (quickInvoice) {
+      const dialog = $('#record-editor');
+      if (dialog) { dialog.innerHTML = quickInvoiceForm(quickInvoice.dataset.quickInvoice); dialog.showModal(); }
+      return;
+    }
     const newDriverContract = event.target.closest('[data-new-driver-contract]');
     if (newDriverContract) {
       const dialog = $('#record-editor');
@@ -1913,6 +2064,7 @@
           if (error) throw error;
         }
         item.status = accept?'signed':'declined';
+        if (accept) item.acceptedAt = new Date().toISOString();
         if (save()) { renderAdminTab(currentAdminTab); showToast(accept?'Fahrervertrag freigegeben und im E-Banking des Teams aufgeschaltet.':'Fahrervertrag abgelehnt.'); }
       } catch (error) { reviewContract.disabled=false; showToast(`Prüfung fehlgeschlagen: ${error.message||''}`,true); }
       return;
@@ -1931,6 +2083,22 @@
         if (!window.zfcSupabase) materializeLocalScheduledInvoices();
         if (save()) { renderAdminTab('finance'); showToast(`Rechnung aufgeschaltet. Sie erscheint am ${date(item.sendDate)} im E-Banking von ${teamName(item.teamId)}.`); }
       } catch (error) { activateScheduled.disabled=false; showToast(`Aufschaltung fehlgeschlagen: ${error.message||''}`,true); }
+      return;
+    }
+    const deleteContract = event.target.closest('[data-delete-contract]');
+    if (deleteContract) {
+      const item = data.contracts.find(entry=>entry.id===deleteContract.dataset.deleteContract);
+      if (!item) return;
+      if (!confirm(`Vertrag „${item.title}“ (${teamName(item.teamId)}) endgültig löschen? Das kann nicht rückgängig gemacht werden.`)) return;
+      try {
+        if (window.zfcSupabase) {
+          const {error} = await window.zfcSupabase.from('contracts').delete().eq('id',item.id);
+          if (error) throw error;
+        }
+        data.contracts = data.contracts.filter(entry=>entry.id!==item.id);
+        closeContractDrawer();
+        if (save()) { renderAdminTab(currentAdminTab); showToast('Vertrag gelöscht.'); }
+      } catch (error) { showToast(`Vertrag konnte nicht gelöscht werden: ${error.message||''}`,true); }
       return;
     }
     const deleteScheduled = event.target.closest('[data-delete-scheduled]');
@@ -2037,6 +2205,7 @@
           if (error) { contract.disabled=false;showToast(`Antwort konnte nicht gespeichert werden: ${error.message}`,true); return; }
         }
         item.status=accept?'signed':'declined';
+        if (accept) item.acceptedAt=new Date().toISOString();
         if(save()){
           if ($('#portal-root')?.dataset.portalPage==='admin') renderAdminTab(currentAdminTab);
           else renderTeam(currentTeamId);

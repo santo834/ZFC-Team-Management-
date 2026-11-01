@@ -42,21 +42,26 @@ alter table public.drivers enable row level security;
 alter table public.scheduled_invoices enable row level security;
 
 -- Fahrer: Teams verwalten ihre eigenen Fahrer, Admins alle.
+drop policy if exists "Admins and owning team read drivers" on public.drivers;
 create policy "Admins and owning team read drivers"
   on public.drivers for select to authenticated
   using ((select public.is_admin()) or team_id = (select public.current_team_id()));
+drop policy if exists "Teams register their own drivers" on public.drivers;
 create policy "Teams register their own drivers"
   on public.drivers for insert to authenticated
   with check ((select public.is_admin()) or team_id = (select public.current_team_id()));
+drop policy if exists "Admins and owning team update drivers" on public.drivers;
 create policy "Admins and owning team update drivers"
   on public.drivers for update to authenticated
   using ((select public.is_admin()) or team_id = (select public.current_team_id()))
   with check ((select public.is_admin()) or team_id = (select public.current_team_id()));
+drop policy if exists "Admins and owning team delete drivers" on public.drivers;
 create policy "Admins and owning team delete drivers"
   on public.drivers for delete to authenticated
   using ((select public.is_admin()) or team_id = (select public.current_team_id()));
 
 -- Fahrerverträge: Teamchefs legen sie zur Finanzprüfung an (in_review), Admins prüfen.
+drop policy if exists "Teams submit driver contracts for review" on public.contracts;
 create policy "Teams submit driver contracts for review"
   on public.contracts for insert to authenticated
   with check (
@@ -70,9 +75,11 @@ create policy "Teams submit driver contracts for review"
   );
 
 -- Terminierte Rechnungen: Teams stellen den Antrag, Admins schalten auf.
+drop policy if exists "Admins and owning team read scheduled invoices" on public.scheduled_invoices;
 create policy "Admins and owning team read scheduled invoices"
   on public.scheduled_invoices for select to authenticated
   using ((select public.is_admin()) or team_id = (select public.current_team_id()));
+drop policy if exists "Teams request scheduled invoices for their team" on public.scheduled_invoices;
 create policy "Teams request scheduled invoices for their team"
   on public.scheduled_invoices for insert to authenticated
   with check (
@@ -83,10 +90,12 @@ create policy "Teams request scheduled invoices for their team"
       and created_by = (select auth.uid())
     )
   );
+drop policy if exists "Admins manage scheduled invoices" on public.scheduled_invoices;
 create policy "Admins manage scheduled invoices"
   on public.scheduled_invoices for update to authenticated
   using ((select public.is_admin()))
   with check ((select public.is_admin()));
+drop policy if exists "Admins and owning team delete scheduled invoices" on public.scheduled_invoices;
 create policy "Admins and owning team delete scheduled invoices"
   on public.scheduled_invoices for delete to authenticated
   using (
@@ -136,8 +145,15 @@ begin
 end;
 $$;
 
+-- Admins dürfen Verträge (inkl. Fahrerverträge) direkt löschen.
+drop policy if exists "Admins delete contracts" on public.contracts;
+create policy "Admins delete contracts"
+  on public.contracts for delete to authenticated
+  using ((select public.is_admin()));
+
 grant select, insert, update, delete on public.drivers to authenticated;
 grant select, insert, update, delete on public.scheduled_invoices to authenticated;
+grant delete on public.contracts to authenticated;
 
 revoke all on function public.materialize_scheduled_invoices() from public, anon;
 grant execute on function public.materialize_scheduled_invoices() to authenticated;
