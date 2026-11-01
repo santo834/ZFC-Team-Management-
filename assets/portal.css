@@ -304,8 +304,35 @@ img.portal-team-mark{object-fit:contain;padding:4px;background:#ffffff14;border:
 @media (prefers-reduced-motion:reduce){.admin-shell .portal-topbar::after{animation:none}}
 @media print{.admin-shell{background:#fff}.admin-shell .portal-card{box-shadow:none}}
 
+/* Vertrags-Wizard (Team Verwaltung) */
+.wizard-head h2{margin:4px 0 14px}
+.wizard-steps{list-style:none;display:flex;gap:8px;margin:0 0 18px;padding:0}
+.wizard-steps li{flex:1;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #ffffff22;border-radius:8px;color:var(--portal-muted);font-size:12.5px}
+.wizard-steps li span{display:grid;place-items:center;flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:#ffffff1a;font-weight:700}
+.wizard-steps li.active{border-color:#39efff;color:var(--portal-text)}
+.wizard-steps li.active span{background:#39efff;color:#10121a}
+.wizard-steps li.done{border-color:#22c55e88}
+.wizard-steps li.done span{background:#22c55e;color:#10121a}
+.wizard-panel{border:0;padding:0;margin:0;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.wizard-panel[hidden]{display:none}
+.wizard-panel legend{grid-column:1/-1;font-weight:700;margin-bottom:2px;color:var(--portal-text)}
+.wizard-panel label.full,.wizard-grid .full{grid-column:1/-1}
+.wizard-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:14px;border:1px dashed #39efff55;border-radius:12px;background:#ffffff04}
+.wizard-grid[hidden]{display:none}
+.wizard-summary{grid-column:1/-1}
+.wizard-summary dl{display:grid;gap:8px;margin:0}
+.wizard-summary dl>div{display:flex;justify-content:space-between;gap:14px;border-bottom:1px solid #ffffff14;padding-bottom:6px}
+.wizard-summary dt{color:var(--portal-muted)}
+.wizard-summary dd{margin:0;text-align:right;overflow-wrap:anywhere}
+.wizard-confirm{grid-column:1/-1;display:flex;flex-direction:row;align-items:flex-start;gap:10px}
+.wizard-confirm input{width:auto;margin-top:3px}
+.wizard-nav{justify-content:flex-end}
+.review-card{border-color:#39efff66;box-shadow:0 0 24px #39efff14}
+
 @media(max-width:740px){
   .admin-shell .portal-topbar{margin:-18px -15px 4px;padding:14px 15px}
   .admin-shell .portal-nav button.active::before{display:none}
   .contract-extra{grid-template-columns:1fr}
+  .wizard-panel,.wizard-grid{grid-template-columns:1fr}
+  .wizard-steps{flex-direction:column}
 }

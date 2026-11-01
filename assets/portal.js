@@ -105,7 +105,7 @@
     if (limit>0 && generated.length>limit) generated = generated.slice(0,limit);
     terms.value = generated;
   }
-  const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[]});
+  const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[],drivers:[],scheduledInvoices:[]});
   let data, currentTeamId, currentTeamTab='account', currentAdminTab='overview', adminProfiles=[], adminTeamId=teams[0].id, statementMonth=new Date().toISOString().slice(0,7);
 
   function readImage(file) {
@@ -140,7 +140,7 @@
 
   function save() {
     try {
-      const shared = window.zfcSupabase ? {offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[]} : {};
+      const shared = window.zfcSupabase ? {offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[],drivers:[],scheduledInvoices:[]} : {};
       if (window.zfcSupabase) shared.teamLogos={};
       localStorage.setItem(STORAGE_KEY, JSON.stringify({...data,...shared}));
       return true;
@@ -178,6 +178,16 @@
         overlay.querySelector('[data-pay-sub]').textContent='Betrag on hold, wartet auf Freigabe der Verwaltung';
         setTimeout(()=>{overlay.remove();resolve();},1800);
       },3000);
+    });
+  }
+
+  function showContractSentAnimation() {
+    return new Promise(resolve=>{
+      const overlay=document.createElement('div');
+      overlay.className='pay-overlay done';
+      overlay.innerHTML='<div class="pay-box" role="status"><div class="pay-circle"><svg viewBox="0 0 80 80" aria-hidden="true"><circle class="pay-ring" cx="40" cy="40" r="34"/><path class="pay-check" d="M24 42 l12 12 l22 -26"/></svg></div><strong data-pay-title>Dein Fahrervertrag wurde zur Finanzüberprüfung eingesendet</strong><span data-pay-sub>Die Verwaltung prüft die Konditionen und schaltet den Vertrag nach der Prüfung in deinem E-Banking auf.</span></div>';
+      document.body.append(overlay);
+      setTimeout(()=>{overlay.remove();resolve();},3400);
     });
   }
 
@@ -262,8 +272,8 @@
   }
 
   function statusBadge(status) {
-    const labels = {open:'Offen',payment_requested:'Zahlung vorgemerkt',paid:'Bezahlt',pending:'In Prüfung',approved:'Freigegeben',signed:'Angenommen',declined:'Abgelehnt',in_progress:'In Bearbeitung',resolved:'Erledigt'};
-    const color = ['paid','approved','signed','resolved'].includes(status) ? 'good' : ['open','payment_requested','pending','in_progress'].includes(status) ? 'pending' : '';
+    const labels = {open:'Offen',payment_requested:'Zahlung vorgemerkt',paid:'Bezahlt',pending:'In Prüfung',approved:'Freigegeben',signed:'Angenommen',declined:'Abgelehnt',in_progress:'In Bearbeitung',resolved:'Erledigt',in_review:'Finanzprüfung',active:'Aufgeschaltet',sent:'Versendet',cancelled:'Storniert'};
+    const color = ['paid','approved','signed','resolved','active','sent'].includes(status) ? 'good' : ['open','payment_requested','pending','in_progress','in_review'].includes(status) ? 'pending' : '';
     return `<span class="portal-badge ${color}">${labels[status] || escapeHtml(status)}</span>`;
   }
 
@@ -342,7 +352,7 @@
       fields.push(team(),editorControl('Vertragsart','type',item.type,'select',[...CONTRACT_TYPES,...(item.type==='vehicle'?[['vehicle','Fahrzeug-Vertrag']]:[])]),
         editorControl('Titel','title',item.title),editorControl('Konditionen','terms',item.terms,'textarea'),
         editorControl('Gültig bis','endDate',item.endDate,'date'),
-        status(item.status,[['pending','Offen'],['signed','Angenommen'],['declined','Abgelehnt'],['terminated','Beendet']]));
+        status(item.status,[['pending','Offen'],['in_review','Finanzprüfung'],['signed','Angenommen'],['declined','Abgelehnt'],['terminated','Beendet']]));
     } else if (type==='booking') {
       fields.push(team(),editorControl('Art','direction',item.direction,'select',[['credit','Gutschrift'],['debit','Belastung']]),
         amount(item.amount),editorControl('Verwendungszweck','note',item.note));
@@ -438,13 +448,22 @@
     if (tab==='overview') {
       const openOrders = data.orders.filter(order=>order.status==='pending').length;
       const pendingInvoices = data.invoices.filter(invoice=>invoice.status!=='paid').length;
+      const reviewContracts = data.contracts.filter(contract=>contract.status==='in_review');
+      const pendingScheduled = data.scheduledInvoices.filter(item=>item.status==='pending');
+      const notifications = [
+        ...reviewContracts.map(contract=>({title:contract.title,meta:`Fahrervertrag · ${teamName(contract.teamId)} · eingereicht ${date(contract.createdAt)}`,tab:'contracts',status:contract.status})),
+        ...pendingScheduled.map(item=>({title:item.description,meta:`Terminierte Rechnung · ${teamName(item.teamId)} · ${money(item.amount)} · Rechnungsdatum ${date(item.sendDate)}`,tab:'finance',status:item.status}))
+      ];
       content = `${heading('Control Center','Guten Tag, Admin.','Alle wichtigen Vorgänge und Teamkonten an einem Ort.')}
         <div class="portal-grid">
           <article class="portal-card"><div class="portal-label-text">Teams im Grid</div><div class="portal-stat">${teams.length}</div><div class="portal-label-text">Teamkonten verwalten</div></article>
           <article class="portal-card"><div class="portal-label-text">Offene Sponsoren-Akten</div><div class="portal-stat">${openOrders}</div><div class="portal-label-text">Neue Kaufanfragen</div></article>
           <article class="portal-card"><div class="portal-label-text">Offene Rechnungen</div><div class="portal-stat">${pendingInvoices}</div><div class="portal-label-text">Teamkonto-Vorgänge</div></article>
           <article class="portal-card"><div class="portal-label-text">Verträge</div><div class="portal-stat">${data.contracts.length}</div><div class="portal-label-text">Angebote und Annahmen</div></article>
+          <article class="portal-card"><div class="portal-label-text">Fahrerverträge</div><div class="portal-stat">${reviewContracts.length}</div><div class="portal-label-text">Warten auf Finanzprüfung</div></article>
+          <article class="portal-card"><div class="portal-label-text">Terminierte Rechnungen</div><div class="portal-stat">${pendingScheduled.length}</div><div class="portal-label-text">Warten auf Aufschaltung</div></article>
         </div>
+        <section class="portal-card" style="margin-top:15px"><h2>Zusatzmeldungen der Teams</h2>${notifications.length?`<div class="portal-item-list">${notifications.map(item=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.meta)}</small></div><div class="portal-actions">${statusBadge(item.status)}<button class="portal-button primary" data-admin-tab="${item.tab}">Prüfen</button></div></div>`).join('')}</div>`:'<div class="portal-empty">Keine neuen Meldungen der Teams.</div>'}</section>
         <div class="portal-grid two" style="margin-top:15px">
           <section class="portal-card"><h2>Zuletzt eingegangen</h2>${data.orders.length?`<div class="portal-item-list">${data.orders.slice().reverse().slice(0,4).map(order=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(order.offerName)}</strong><small>${escapeHtml(teamName(order.teamId))} · ${escapeHtml(order.contactName)}</small></div>${statusBadge(order.status)}</div>`).join('')}</div>`:'<div class="portal-empty">Noch keine Sponsoren-Anfragen.</div>'}</section>
           <section class="portal-card"><h2>Schnellzugriff</h2><div class="portal-actions"><button class="portal-button primary" data-admin-tab="offers">Angebot erstellen</button><button class="portal-button" data-admin-tab="finance">Rechnung erstellen</button><button class="portal-button" data-admin-tab="contracts">Vertrag anlegen</button></div><p>Änderungen werden in diesem Browser gespeichert.</p></section>
@@ -496,13 +515,16 @@
           <div class="portal-actions"><button class="portal-button">Buchung erfassen</button></div>
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-edit-record="invoice" data-record-id="${invoice.id}">Bearbeiten</button><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Terminierte Rechnungen</h2><p class="portal-muted">Von Teams vorbereitete automatisierte Rechnungen. Nach der manuellen Aufschaltung erscheinen sie am Rechnungsdatum automatisch im E-Banking des Teams. Bei Bedarf können sie gelöscht werden, z. B. wenn ein Team nicht antreten kann.</p><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Beschreibung</th><th>Team</th><th>Betrag</th><th>Rechnungsdatum</th><th>Fällig</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.scheduledInvoices.length?data.scheduledInvoices.slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate)).map(item=>{const linked=data.invoices.find(invoice=>invoice.id===item.invoiceId);return `<tr><td>${escapeHtml(item.description)}</td><td>${escapeHtml(teamName(item.teamId))}</td><td>${money(item.amount)}</td><td>${date(item.sendDate)}</td><td>${date(item.dueDate)}</td><td>${statusBadge(item.status)}</td><td><div class="portal-actions">${item.status==='pending'?`<button class="portal-button primary" data-activate-scheduled="${item.id}">Aufschalten</button>`:''}${linked?`<button class="portal-button" data-print-invoice="${linked.id}">PDF</button>`:''}<button class="portal-button danger" data-delete-scheduled="${item.id}">Löschen</button></div></td></tr>`;}).join(''):'<tr><td colspan="7" class="portal-empty">Keine terminierten Rechnungen vorhanden.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a></article>`).join('')}</div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card reset-card" style="margin-top:15px"><h2>Daten zurücksetzen</h2>
           <p class="portal-muted">Löscht alle Rechnungen, Kontobuchungen, Kaufanfragen, Verträge, Tickets und Kredit-Anträge und setzt die Teamkonten (inkl. Startkapital) auf 0 zurück. Karten bleiben bestehen. Das kann nicht rückgängig gemacht werden, z. B. für den Start einer neuen Saison.</p>
           <div class="portal-actions"><button class="portal-button danger" type="button" data-reset-data>Alle Daten zurücksetzen</button></div></section>`;
     } else if (tab==='contracts') {
-      content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen.')}
+      const inReviewContracts = data.contracts.filter(contract=>contract.status==='in_review').slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+      content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen. Von Teams eingereichte Fahrerverträge prüfst du hier zur Finanzüberprüfung.')}
+        ${inReviewContracts.length?`<section class="portal-card review-card"><h2>Fahrerverträge zur Finanzprüfung</h2><div class="portal-item-list">${inReviewContracts.map(contract=>{const driver=data.drivers.find(entry=>entry.id===contract.driverId);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(teamName(contract.teamId))}${driver?` · ${escapeHtml(driver.name)}`:''} · gültig bis ${date(contract.endDate)} · eingereicht ${date(contract.createdAt)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button primary" data-review-contract="${contract.id}" data-review-accept="1">Freigeben</button><button class="portal-button danger" data-review-contract="${contract.id}" data-review-accept="0">Ablehnen</button></div></div>`;}).join('')}</div></section>`:''}
         <div class="portal-grid two"><section class="portal-card"><h2>Vertragsentwurf anlegen</h2><form class="portal-form" data-form="contract" data-return-tab="contracts">
           <label>Team${teamSelect(adminTeamId)}</label><label>Vertragsart<select name="type">${contractTypeOptions()}</select></label>
           ${contractFieldsHtml('driver')}
@@ -608,6 +630,110 @@
     </form>`;
   }
 
+  function driverContractWizard(teamId, preselectDriverId='') {
+    const teamDrivers = data.drivers.filter(driver=>driver.teamId===teamId);
+    const driverOptions = teamDrivers.map(driver=>`<option value="${driver.id}" ${driver.id===preselectDriverId?'selected':''}>${escapeHtml(driver.name)}${driver.number!=null?` · #${driver.number}`:''}</option>`).join('');
+    return `<form class="portal-form wizard" data-form="driver-contract" data-wizard-step="1" novalidate>
+      <input type="hidden" name="teamId" value="${escapeHtml(teamId)}">
+      <div class="wizard-head full">
+        <span class="portal-kicker">Team Verwaltung</span>
+        <h2>Fahrervertrag anlegen</h2>
+        <ol class="wizard-steps" data-wizard-progress>
+          <li class="active" data-wizard-dot="1"><span>1</span>Fahrer</li>
+          <li data-wizard-dot="2"><span>2</span>Vertragsdetails</li>
+          <li data-wizard-dot="3"><span>3</span>Prüfung &amp; Versand</li>
+        </ol>
+      </div>
+      <fieldset class="wizard-panel full" data-wizard-panel="1">
+        <legend>Schritt 1 · Fahrer wählen oder anlegen</legend>
+        <label class="full">Fahrer<select name="driverId"><option value="">Neuen Fahrer anlegen</option>${driverOptions}</select></label>
+        <div class="wizard-grid full" data-new-driver-fields ${preselectDriverId?'hidden':''}>
+          <label class="full">Name des Fahrers<input name="driverName" maxlength="80" placeholder="z. B. Max Mustermann"></label>
+          <label>Startnummer<input name="driverNumber" type="number" min="0" max="999" placeholder="z. B. 33"></label>
+          <label>Nationalität<input name="nationality" maxlength="80" placeholder="z. B. Schweiz"></label>
+          <label>Geburtsdatum<input name="birthDate" type="date"></label>
+          <label>Fahrerlizenz<input name="license" maxlength="80" placeholder="z. B. FIA Superlizenz"></label>
+        </div>
+      </fieldset>
+      <fieldset class="wizard-panel full" data-wizard-panel="2" hidden>
+        <legend>Schritt 2 · Vertragsdetails bestimmen</legend>
+        <label>Jahresvergütung in EUR<input name="salary" type="number" min="0" step="0.01" placeholder="z. B. 1500000"></label>
+        <label>Vertragsbeginn<input name="startDate" type="date"></label>
+        <label>Gültig bis<input name="endDate" type="date"></label>
+        <label>Prämienregelung<input name="bonuses" maxlength="200" placeholder="z. B. Siegprämie 50.000 EUR, Punkteprämie …"></label>
+        <label class="full">Nebenpflichten<textarea name="duties" maxlength="500" placeholder="z. B. PR-Termine, Simulator-Einsätze, Tests"></textarea></label>
+        <label class="full">Zusätzliche Klauseln<textarea name="clauses" maxlength="1000" placeholder="z. B. Ausstiegsklauseln, Optionen auf Verlängerung …"></textarea></label>
+      </fieldset>
+      <fieldset class="wizard-panel full" data-wizard-panel="3" hidden>
+        <legend>Schritt 3 · Prüfen und zur Finanzüberprüfung senden</legend>
+        <div class="wizard-summary" data-wizard-summary></div>
+        <label class="full wizard-confirm"><input type="checkbox" name="confirm" value="1"> Ich bestätige, dass alle Angaben korrekt sind und der Vertrag der ZFC-Verwaltung zur Finanzüberprüfung übermittelt werden darf.</label>
+      </fieldset>
+      <div class="portal-actions full wizard-nav">
+        <button class="portal-button" type="button" data-close-editor>Abbrechen</button>
+        <button class="portal-button" type="button" data-wizard-back disabled>Zurück</button>
+        <button class="portal-button primary" type="button" data-wizard-next>Weiter</button>
+        <button class="portal-button primary" type="submit" data-wizard-submit hidden>Zur Finanzüberprüfung senden</button>
+      </div>
+    </form>`;
+  }
+
+  function setWizardStep(form, step) {
+    form.dataset.wizardStep = String(step);
+    form.querySelectorAll('[data-wizard-panel]').forEach(panel=>{ panel.hidden = Number(panel.dataset.wizardPanel)!==step; });
+    form.querySelectorAll('[data-wizard-dot]').forEach(dot=>{
+      const index = Number(dot.dataset.wizardDot);
+      dot.classList.toggle('active', index===step);
+      dot.classList.toggle('done', index<step);
+    });
+    const back = form.querySelector('[data-wizard-back]');
+    const next = form.querySelector('[data-wizard-next]');
+    const submit = form.querySelector('[data-wizard-submit]');
+    if (back) back.disabled = step===1;
+    if (next) next.hidden = step===3;
+    if (submit) submit.hidden = step!==3;
+    if (step===3) {
+      const fields = Object.fromEntries(new FormData(form));
+      const driver = data.drivers.find(entry=>entry.id===fields.driverId);
+      const driverName = driver ? driver.name : (fields.driverName||'').trim();
+      const rows = [
+        ['Team', teamName(fields.teamId)],
+        ['Fahrer', driverName],
+        !driver && fields.driverNumber ? ['Startnummer', fields.driverNumber] : null,
+        !driver && fields.nationality ? ['Nationalität', fields.nationality] : null,
+        !driver && fields.birthDate ? ['Geburtsdatum', date(fields.birthDate)] : null,
+        !driver && fields.license ? ['Fahrerlizenz', fields.license] : null,
+        ['Jahresvergütung', money(cents(fields.salary||0))],
+        fields.startDate ? ['Vertragsbeginn', date(fields.startDate)] : null,
+        ['Gültig bis', date(fields.endDate)],
+        fields.bonuses ? ['Prämienregelung', fields.bonuses] : null,
+        fields.duties ? ['Nebenpflichten', fields.duties] : null,
+        fields.clauses ? ['Zusätzliche Klauseln', fields.clauses] : null
+      ].filter(Boolean);
+      const summary = form.querySelector('[data-wizard-summary]');
+      if (summary) summary.innerHTML = `<dl>${rows.map(([key,value])=>`<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join('')}</dl>`;
+    }
+  }
+
+  function validateWizardStep(form, step) {
+    const fields = Object.fromEntries(new FormData(form));
+    if (step===1) {
+      if (!fields.driverId && !(fields.driverName||'').trim()) {
+        showToast('Bitte einen bestehenden Fahrer wählen oder den Namen des neuen Fahrers eingeben.', true);
+        return false;
+      }
+      return true;
+    }
+    if (step===2) {
+      const salary = Number(fields.salary);
+      if (!Number.isFinite(salary) || salary<=0 || salary>1000000000) { showToast('Bitte eine gültige Jahresvergütung eingeben.', true); return false; }
+      if (!fields.endDate) { showToast('Bitte das Vertragsende angeben.', true); return false; }
+      if (fields.startDate && fields.endDate<fields.startDate) { showToast('Das Vertragsende muss nach dem Vertragsbeginn liegen.', true); return false; }
+      return true;
+    }
+    return true;
+  }
+
   function renderTeam(teamId) {
     const root = $('#portal-root');
     if (!root) return;
@@ -624,7 +750,7 @@
     const requests = data.cardRequests.filter(request=>request.teamId===selected.id);
     const pendingRequest = requests.find(request=>request.status==='pending');
     const cardName = entry => cards.find(card=>card.id===entryCardId(entry))?.label || '–';
-    const tabs = [['account','Mein Konto'],['offers','Angebote'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
+    const tabs = [['account','Mein Konto'],['management','Team Verwaltung'],['offers','Angebote'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
     const tab = tabs.some(([key])=>key===currentTeamTab) ? currentTeamTab : 'account';
     const txRow = entry => `<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td><span class="eb-pill">${escapeHtml(cardName(entry))}</span></td><td class="eb-num ${entry.direction==='credit'?'eb-plus':'eb-minus'}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`;
     const txTable = (rows,empty='Noch keine Buchungen vorhanden.') => `<div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Karte</th><th class="eb-num">Betrag</th></tr></thead><tbody>${rows.length?rows.map(txRow).join(''):`<tr><td colspan="4" class="portal-empty">${empty}</td></tr>`}</tbody></table></div>`;
@@ -650,6 +776,36 @@
       panel = `<section class="eb-card" id="angebote"><h3>Angebote der ZFC</h3><p class="eb-muted">Wähle ein Angebot und sende eine unverbindliche Anfrage an die Verwaltung.</p>
         ${data.offers.length?`<div class="portal-item-list">${data.offers.map(offer=>{const d=offerDetails(offer);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(offer.name)}</strong><small>${categoryName(offer.category)}${d.badge?` · ${escapeHtml(d.badge)}`:''} · ${money(offer.amount)} jährlich<br>${escapeHtml(d.tagline||offer.description)}</small></div><div class="portal-actions"><a class="portal-button" href="${offerPageUrl(offer.id)}">Details</a><button class="eb-btn" type="button" data-team-inquire="${escapeHtml(offer.id)}">Anfrage senden</button></div></div>`;}).join('')}</div>`:'<div class="portal-empty">Aktuell sind keine Angebote veröffentlicht.</div>'}</section>
       <section class="eb-card" style="margin-top:16px" id="anfragen"><h3>Deine Anfragen</h3><div class="portal-item-list">${teamOrders.length?teamOrders.map(order=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(order.offerName)}</strong><small>${categoryName(order.category)} · ${money(order.amount)} · ${date(order.createdAt)}${order.notes?`<br>${escapeHtml(order.notes)}`:''}</small></div>${statusBadge(order.status)}</div>`).join(''):'<div class="portal-empty">Du hast noch keine Anfragen gesendet.</div>'}</div></section>`;
+    } else if (tab==='management') {
+      const teamDrivers = data.drivers.filter(driver=>driver.teamId===selected.id);
+      const driverContracts = contracts.filter(contract=>contract.type==='driver').slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+      const scheduled = data.scheduledInvoices.filter(item=>item.teamId===selected.id).slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate));
+      const driverRow = driver => `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(driver.name)}</strong><small>${driver.number!=null?`Startnummer ${driver.number} · `:''}${escapeHtml(driver.nationality||'Nationalität offen')}${driver.license?` · Lizenz ${escapeHtml(driver.license)}`:''}</small></div><button class="portal-button" type="button" data-new-driver-contract="${driver.id}">Vertrag anlegen</button></div>`;
+      const contractRow = contract => { const driver=data.drivers.find(entry=>entry.id===contract.driverId); return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${driver?`${escapeHtml(driver.name)} · `:''}gültig bis ${date(contract.endDate)} · ${date(contract.createdAt)} eingereicht<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button></div></div>`; };
+      const scheduledRow = item => `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(item.description)}</strong><small>${money(item.amount)} · Rechnungsdatum ${date(item.sendDate)} · fällig ${date(item.dueDate)}</small></div><div class="portal-actions">${statusBadge(item.status)}${['pending','active'].includes(item.status)?`<button class="portal-button danger" type="button" data-delete-scheduled="${item.id}">Löschen</button>`:''}</div></div>`;
+      panel = `<section class="eb-card" id="team-verwaltung"><h3>Team Verwaltung</h3><p class="eb-muted">Lege deine Fahrer selbst an, erstelle Fahrerverträge im geführten Ablauf und sende sie der Verwaltung zur Finanzüberprüfung. Terminierte Rechnungen kannst du hier ebenfalls vorbereiten.</p></section>
+      <div class="eb-two" style="margin-top:16px">
+        <section class="eb-card"><div class="eb-row-between"><h3>Fahrer</h3><button class="eb-btn" type="button" data-new-driver-contract="">Neuer Fahrervertrag</button></div>
+          ${teamDrivers.length?`<div class="portal-item-list">${teamDrivers.map(driverRow).join('')}</div>`:'<p class="eb-muted">Noch keine Fahrer angelegt. Starte mit „Neuer Fahrervertrag“ – der Fahrer wird im ersten Schritt des Workflows angelegt.</p>'}
+        </section>
+        <section class="eb-card"><h3>Automatisierte Rechnung stellen</h3>
+          <form class="portal-form" data-form="scheduled-invoice">
+            <input type="hidden" name="teamId" value="${selected.id}">
+            <label class="full">Beschreibung<input name="description" maxlength="500" required placeholder="z. B. Startgebühr Saison 2026"></label>
+            <label>Betrag in EUR<input name="amount" type="number" min="0.01" step="0.01" required></label>
+            <label>Rechnungsdatum<input name="sendDate" type="date" required></label>
+            <label>Fällig am<input name="dueDate" type="date" required></label>
+            <div class="portal-actions full"><button class="eb-btn">Rechnung terminieren</button></div>
+          </form>
+          <p class="eb-muted">Die Verwaltung schaltet die Rechnung manuell auf. Am gewählten Rechnungsdatum erscheint sie automatisch hier im E-Banking. Bei Bedarf kann sie gelöscht werden, z. B. falls dein Team nicht antreten kann.</p>
+        </section>
+      </div>
+      <section class="eb-card" style="margin-top:16px"><h3>Fahrerverträge</h3>
+        ${driverContracts.length?`<div class="portal-item-list">${driverContracts.map(contractRow).join('')}</div>`:'<div class="portal-empty">Noch keine Fahrerverträge eingereicht.</div>'}
+      </section>
+      <section class="eb-card" style="margin-top:16px"><h3>Terminierte Rechnungen</h3>
+        ${scheduled.length?`<div class="portal-item-list">${scheduled.map(scheduledRow).join('')}</div>`:'<div class="portal-empty">Keine terminierten Rechnungen vorhanden.</div>'}
+      </section>`;
     } else if (tab==='transactions') {
       panel = `${statementSection(selected.id)}<section class="eb-card" style="margin-top:16px"><h3>Alle Kontobewegungen</h3>${txTable(bookings)}</section>`;
     } else if (tab==='cards') {
@@ -864,6 +1020,17 @@
     const invoice = {id:uid(),number,teamId,amount,description,items,dueDate,reference,orderId,...billTo,status:'open',createdAt:new Date().toISOString()};
     data.invoices.push(invoice);
     return invoice;
+  }
+
+  // Demo-Modus: terminierte Rechnungen erscheinen am gewählten Datum im E-Banking.
+  function materializeLocalScheduledInvoices() {
+    const today = new Date().toISOString().slice(0,10);
+    data.scheduledInvoices.forEach(item=>{
+      if (item.status==='active' && !item.invoiceId && item.sendDate<=today) {
+        const invoice = makeInvoice(item.teamId, item.amount, item.description, item.dueDate, `AUTO-${item.id.slice(0,8)}`);
+        item.status='sent'; item.invoiceId=invoice.id;
+      }
+    });
   }
 
   function cents(value) {
@@ -1110,6 +1277,74 @@
       }
       data.contracts.push(contract);
       if (save()) { renderAdminTab(form.dataset.returnTab||'contracts'); showToast('Vertrag zur Prüfung gesendet.'); }
+    } else if (form.dataset.form==='driver-contract') {
+      const wizardStep = Number(form.dataset.wizardStep||1);
+      if (wizardStep!==3) {
+        if (validateWizardStep(form,wizardStep)) setWizardStep(form,wizardStep+1);
+        return;
+      }
+      const teamId = window.zfcProfile&&window.zfcProfile.role!=='admin' ? window.zfcProfile.team_id : fields.teamId;
+      if (!teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
+      if (!validateWizardStep(form,1) || !validateWizardStep(form,2)) return;
+      if (!fields.confirm) throw new Error('Bitte bestätige die Angaben vor dem Versand.');
+      let driver = data.drivers.find(entry=>entry.id===fields.driverId && entry.teamId===teamId);
+      if (!driver) {
+        const name = (fields.driverName||'').trim();
+        if (!name) throw new Error('Bitte den Namen des Fahrers eingeben.');
+        driver = {id:uid(),teamId,name,number:fields.driverNumber?Number(fields.driverNumber):null,nationality:(fields.nationality||'').trim(),birthDate:fields.birthDate||'',license:(fields.license||'').trim(),createdAt:new Date().toISOString()};
+        if (window.zfcSupabase) {
+          const {data:row,error} = await window.zfcSupabase.from('drivers').insert({team_id:teamId,name:driver.name,number:driver.number,nationality:driver.nationality,birth_date:driver.birthDate||null,license:driver.license,created_by:window.zfcProfile.id}).select('*').single();
+          if (error) throw new Error(`Fahrer konnte nicht angelegt werden: ${error.message}`);
+          driver = mapDriver(row);
+        }
+        data.drivers.push(driver);
+      }
+      const salary = cents(fields.salary);
+      const terms = [
+        `Fahrer: ${driver.name}`,
+        driver.number!=null ? `Startnummer: ${driver.number}` : null,
+        driver.nationality ? `Nationalität: ${driver.nationality}` : null,
+        driver.birthDate ? `Geburtsdatum: ${date(driver.birthDate)}` : null,
+        driver.license ? `Fahrerlizenz: ${driver.license}` : null,
+        `Jahresvergütung: ${money(salary)}`,
+        fields.startDate ? `Vertragsbeginn: ${date(fields.startDate)}` : null,
+        `Gültig bis: ${date(fields.endDate)}`,
+        (fields.bonuses||'').trim() ? `Prämienregelung: ${fields.bonuses.trim()}` : null,
+        (fields.duties||'').trim() ? `Nebenpflichten: ${fields.duties.trim()}` : null,
+        (fields.clauses||'').trim() ? `Zusätzliche Klauseln: ${fields.clauses.trim()}` : null
+      ].filter(Boolean).join('\n');
+      let contract = {id:uid(),teamId,type:'driver',title:`Fahrervertrag ${driver.name}`,terms,endDate:fields.endDate,status:'in_review',driverId:driver.id,createdAt:new Date().toISOString()};
+      if (window.zfcSupabase) {
+        const {data:row,error} = await window.zfcSupabase.from('contracts').insert({team_id:teamId,type:'driver',title:contract.title,terms,starts_on:fields.startDate||null,ends_on:fields.endDate,status:'in_review',driver_id:driver.id,created_by:window.zfcProfile.id}).select('*').single();
+        if (error) throw new Error(`Vertrag konnte nicht eingereicht werden: ${error.message}`);
+        contract = mapContract(row);
+      }
+      data.contracts.push(contract);
+      const dialog = form.closest('dialog');
+      if (dialog?.open) dialog.close();
+      save();
+      await showContractSentAnimation();
+      if ($('#portal-root')?.dataset.portalPage==='team') { currentTeamTab='management'; renderTeam(teamId); }
+      else renderAdminTab(currentAdminTab);
+    } else if (form.dataset.form==='scheduled-invoice') {
+      const teamId = window.zfcProfile&&window.zfcProfile.role!=='admin' ? window.zfcProfile.team_id : fields.teamId;
+      if (!teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
+      if (!(fields.description||'').trim()) throw new Error('Bitte eine Beschreibung eingeben.');
+      if (!fields.sendDate || !fields.dueDate) throw new Error('Bitte Rechnungsdatum und Fälligkeitsdatum angeben.');
+      if (fields.dueDate<fields.sendDate) throw new Error('Das Fälligkeitsdatum muss am oder nach dem Rechnungsdatum liegen.');
+      const amount = cents(fields.amount);
+      let item = {id:uid(),teamId,description:fields.description.trim(),amount,sendDate:fields.sendDate,dueDate:fields.dueDate,status:'pending',invoiceId:null,createdAt:new Date().toISOString()};
+      if (window.zfcSupabase) {
+        const {data:row,error} = await window.zfcSupabase.from('scheduled_invoices').insert({team_id:teamId,description:item.description,amount_cents:amount,send_date:item.sendDate,due_date:item.dueDate,status:'pending',created_by:window.zfcProfile.id}).select('*').single();
+        if (error) throw new Error(`Rechnung konnte nicht terminiert werden: ${error.message}`);
+        item = mapScheduledInvoice(row);
+      }
+      data.scheduledInvoices.push(item);
+      if (save()) {
+        if ($('#portal-root')?.dataset.portalPage==='team') { currentTeamTab='management'; renderTeam(teamId); }
+        else renderAdminTab('finance');
+        showToast('Rechnung terminiert. Die Verwaltung schaltet sie manuell auf.');
+      }
     } else if (form.dataset.form==='support-ticket') {
       let ticket={id:uid(),teamId:fields.teamId,category:fields.category,subject:fields.subject.trim(),details:fields.details.trim(),status:'open',createdAt:new Date().toISOString()};
       if(window.zfcSupabase) {
@@ -1259,7 +1494,15 @@
   }
 
   function mapContract(row) {
-    return {id:row.id,teamId:row.team_id,type:row.type,title:row.title,terms:row.terms,endDate:row.ends_on,status:row.status,createdAt:row.created_at};
+    return {id:row.id,teamId:row.team_id,type:row.type,title:row.title,terms:row.terms,endDate:row.ends_on,status:row.status,driverId:row.driver_id||null,createdAt:row.created_at};
+  }
+
+  function mapDriver(row) {
+    return {id:row.id,teamId:row.team_id,name:row.name,number:row.number,nationality:row.nationality||'',birthDate:row.birth_date||'',license:row.license||'',createdAt:row.created_at};
+  }
+
+  function mapScheduledInvoice(row) {
+    return {id:row.id,teamId:row.team_id,description:row.description,amount:Number(row.amount_cents),sendDate:row.send_date,dueDate:row.due_date,status:row.status,invoiceId:row.invoice_id||null,createdAt:row.created_at};
   }
 
   function mapTicket(row) {
@@ -1283,14 +1526,19 @@
       teamRows.forEach(row=>{const team=teams.find(item=>item.id===row.id);if(team){team.initialBalance=Number(row.initial_balance_cents);if(row.logo_path)data.teamLogos[row.id]=row.logo_path;else delete data.teamLogos[row.id];}});
       let entriesQuery = window.zfcSupabase.from('account_entries').select('*').order('created_at',{ascending:false});
       if (page==='admin' || page==='team') {
-        const [{data: cardRows, error: cardsError}, {data: requestRows, error: requestsError}] = await Promise.all([
+        try { await window.zfcSupabase.rpc('materialize_scheduled_invoices'); } catch { /* Migration evtl. noch nicht eingespielt */ }
+        const [{data: cardRows, error: cardsError}, {data: requestRows, error: requestsError}, {data: driverRows, error: driversError}, {data: scheduledRows, error: scheduledError}] = await Promise.all([
           window.zfcSupabase.from('team_cards').select('*').order('created_at',{ascending:true}),
-          window.zfcSupabase.from('card_requests').select('*').order('created_at',{ascending:false})
+          window.zfcSupabase.from('card_requests').select('*').order('created_at',{ascending:false}),
+          window.zfcSupabase.from('drivers').select('*').order('created_at',{ascending:true}),
+          window.zfcSupabase.from('scheduled_invoices').select('*').order('send_date',{ascending:true})
         ]);
         if (cardsError) throw cardsError;
         if (requestsError) throw requestsError;
         data.cards = cardRows.map(mapCard);
         data.cardRequests = requestRows.map(mapCardRequest);
+        if (!driversError && driverRows) data.drivers = driverRows.map(mapDriver);
+        if (!scheduledError && scheduledRows) data.scheduledInvoices = scheduledRows.map(mapScheduledInvoice);
       }
       if (page==='team') entriesQuery=entriesQuery.eq('team_id',selectedTeamId);
       if (page==='admin' || page==='team') {
@@ -1349,7 +1597,9 @@
       data = load();
       data.cards = Array.isArray(data.cards) ? data.cards : [];
       data.cardRequests = Array.isArray(data.cardRequests) ? data.cardRequests : [];
-      if (!window.zfcSupabase) ensureLocalBasicCards();
+      data.drivers = Array.isArray(data.drivers) ? data.drivers : [];
+      data.scheduledInvoices = Array.isArray(data.scheduledInvoices) ? data.scheduledInvoices : [];
+      if (!window.zfcSupabase) { ensureLocalBasicCards(); materializeLocalScheduledInvoices(); }
       if(data.home.title==='Built to race.' && data.home.claim==='Made to rise.'){
         Object.assign(data.home,{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.'});
       }
@@ -1373,7 +1623,7 @@
     startRealtime(page);
   }
 
-  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings','team_cards','card_requests'];
+  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings','team_cards','card_requests','drivers','scheduled_invoices'];
 
   function startRealtime(page) {
     const client = window.zfcSupabase;
@@ -1382,7 +1632,7 @@
     const userIsEditing = () => document.querySelector('dialog[open]') ||
       document.activeElement?.matches?.('input,textarea,select');
     let notify = false;
-    const snapshot = () => JSON.stringify([data.offers,data.orders,data.invoices,data.contracts,data.bookings,data.tickets,data.cards,data.cardRequests,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
+    const snapshot = () => JSON.stringify([data.offers,data.orders,data.invoices,data.contracts,data.bookings,data.tickets,data.cards,data.cardRequests,data.drivers,data.scheduledInvoices,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
     const refresh = async () => {
       if (busy) { again = true; return; }
       if (userIsEditing()) { timer = setTimeout(refresh, 2000); return; }
@@ -1632,6 +1882,75 @@
       if (offer && dialog) { dialog.innerHTML = teamInquiryForm(offer, currentTeamId); dialog.showModal(); }
       return;
     }
+    const newDriverContract = event.target.closest('[data-new-driver-contract]');
+    if (newDriverContract) {
+      const dialog = $('#record-editor');
+      if (dialog) { dialog.innerHTML = driverContractWizard(currentTeamId, newDriverContract.dataset.newDriverContract||''); dialog.showModal(); }
+      return;
+    }
+    const wizardNav = event.target.closest('[data-wizard-next],[data-wizard-back]');
+    if (wizardNav) {
+      const form = wizardNav.closest('form[data-form="driver-contract"]');
+      if (!form) return;
+      const step = Number(form.dataset.wizardStep||1);
+      if (wizardNav.hasAttribute('data-wizard-next')) {
+        if (!validateWizardStep(form, step)) return;
+        setWizardStep(form, step+1);
+      } else {
+        setWizardStep(form, Math.max(1, step-1));
+      }
+      return;
+    }
+    const reviewContract = event.target.closest('[data-review-contract]');
+    if (reviewContract) {
+      const item = data.contracts.find(entry=>entry.id===reviewContract.dataset.reviewContract);
+      if (!item || item.status!=='in_review') return;
+      const accept = reviewContract.dataset.reviewAccept==='1';
+      reviewContract.disabled = true;
+      try {
+        if (window.zfcSupabase) {
+          const {error} = await window.zfcSupabase.from('contracts').update({status:accept?'signed':'declined'}).eq('id',item.id);
+          if (error) throw error;
+        }
+        item.status = accept?'signed':'declined';
+        if (save()) { renderAdminTab(currentAdminTab); showToast(accept?'Fahrervertrag freigegeben und im E-Banking des Teams aufgeschaltet.':'Fahrervertrag abgelehnt.'); }
+      } catch (error) { reviewContract.disabled=false; showToast(`Prüfung fehlgeschlagen: ${error.message||''}`,true); }
+      return;
+    }
+    const activateScheduled = event.target.closest('[data-activate-scheduled]');
+    if (activateScheduled) {
+      const item = data.scheduledInvoices.find(entry=>entry.id===activateScheduled.dataset.activateScheduled);
+      if (!item || item.status!=='pending') return;
+      activateScheduled.disabled = true;
+      try {
+        if (window.zfcSupabase) {
+          const {error} = await window.zfcSupabase.from('scheduled_invoices').update({status:'active'}).eq('id',item.id);
+          if (error) throw error;
+        }
+        item.status='active';
+        if (!window.zfcSupabase) materializeLocalScheduledInvoices();
+        if (save()) { renderAdminTab('finance'); showToast(`Rechnung aufgeschaltet. Sie erscheint am ${date(item.sendDate)} im E-Banking von ${teamName(item.teamId)}.`); }
+      } catch (error) { activateScheduled.disabled=false; showToast(`Aufschaltung fehlgeschlagen: ${error.message||''}`,true); }
+      return;
+    }
+    const deleteScheduled = event.target.closest('[data-delete-scheduled]');
+    if (deleteScheduled && confirm('Diese terminierte Rechnung löschen?')) {
+      const item = data.scheduledInvoices.find(entry=>entry.id===deleteScheduled.dataset.deleteScheduled);
+      if (!item) return;
+      try {
+        if (window.zfcSupabase) {
+          const {error} = await window.zfcSupabase.from('scheduled_invoices').delete().eq('id',item.id);
+          if (error) throw error;
+        }
+        data.scheduledInvoices = data.scheduledInvoices.filter(entry=>entry.id!==item.id);
+        if (save()) {
+          if ($('#portal-root')?.dataset.portalPage==='team') { currentTeamTab='management'; renderTeam(currentTeamId); }
+          else renderAdminTab('finance');
+          showToast('Terminierte Rechnung gelöscht.');
+        }
+      } catch (error) { showToast(`Löschen fehlgeschlagen: ${error.message||''}`,true); }
+      return;
+    }
     const teamTab = event.target.closest('[data-team-tab]');
     if (teamTab && $('#portal-root')?.dataset.portalPage==='team') { currentTeamTab=teamTab.dataset.teamTab; renderTeam(currentTeamId); window.scrollTo({top:0}); return; }
     const approveCard = event.target.closest('[data-approve-card-request]');
@@ -1756,6 +2075,11 @@
       const preview = row?.querySelector('[data-card-design-preview]');
       const request = data.cardRequests.find(item=>item.id===row?.dataset.cardRequestRow);
       if (preview) preview.outerHTML = cardDesignPreview(event.target.value, request?.teamId);
+      return;
+    }
+    if (event.target.matches('form[data-form="driver-contract"] select[name="driverId"]')) {
+      const wrap = event.target.form.querySelector('[data-new-driver-fields]');
+      if (wrap) wrap.hidden = Boolean(event.target.value);
       return;
     }
     if (event.target.matches('form[data-form="contract"] select[name="type"]')) {
