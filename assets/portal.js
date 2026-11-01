@@ -603,7 +603,7 @@
           <div class="portal-actions"><button class="portal-button">Buchung erfassen</button></div>
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-edit-record="invoice" data-record-id="${invoice.id}">Bearbeiten</button><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Terminierte Rechnungen</h2><p class="portal-muted">Von Teams vorbereitete automatisierte Rechnungen. Nach der manuellen Aufschaltung erscheinen sie am Rechnungsdatum automatisch im E-Banking des Teams. Bei Bedarf können sie gelöscht werden, z. B. wenn ein Team nicht antreten kann.</p><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Beschreibung</th><th>Team</th><th>Betrag</th><th>Rechnungsdatum</th><th>Fällig</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.scheduledInvoices.length?data.scheduledInvoices.slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate)).map(item=>{const linked=data.invoices.find(invoice=>invoice.id===item.invoiceId);return `<tr><td>${escapeHtml(item.description)}</td><td>${escapeHtml(teamName(item.teamId))}</td><td>${money(item.amount)}</td><td>${date(item.sendDate)}</td><td>${date(item.dueDate)}</td><td>${statusBadge(item.status)}</td><td><div class="portal-actions">${item.status==='pending'?`<button class="portal-button primary" data-activate-scheduled="${item.id}">Aufschalten</button>`:''}${linked?`<button class="portal-button" data-print-invoice="${linked.id}">PDF</button>`:''}<button class="portal-button danger" data-delete-scheduled="${item.id}">Löschen</button></div></td></tr>`;}).join(''):'<tr><td colspan="7" class="portal-empty">Keine terminierten Rechnungen vorhanden.</td></tr>'}</tbody></table></div></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Terminierte Rechnungen</h2><p class="portal-muted">Von Teams vorbereitete automatisierte Rechnungen. Nach der manuellen Aufschaltung erscheinen sie ab dem Startdatum wöchentlich im E-Banking des Teams, bis alle Raten abgerechnet sind. Bei Bedarf können sie gelöscht werden, z. B. wenn ein Team nicht antreten kann.</p><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Beschreibung</th><th>Team</th><th>Rate / Gesamt</th><th>Start</th><th>Fällig</th><th>Fortschritt</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.scheduledInvoices.length?data.scheduledInvoices.slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate)).map(item=>{const linked=data.invoices.find(invoice=>invoice.id===item.invoiceId);const recurring=item.installmentsTotal>1;const rateAmount=item.total!=null&&recurring?Math.floor(item.total/item.installmentsTotal):item.amount;return `<tr><td>${escapeHtml(item.description)}</td><td>${escapeHtml(teamName(item.teamId))}</td><td>${money(rateAmount)}${recurring?`<br><span class="portal-muted">gesamt ${money(item.total)}</span>`:''}</td><td>${date(item.sendDate)}</td><td>${date(item.dueDate)}</td><td>${recurring?`Rate ${item.installmentsSent}/${item.installmentsTotal}${item.status==='active'&&item.nextSendDate?`<br><span class="portal-muted">nächste ${date(item.nextSendDate)}</span>`:''}`:'—'}</td><td>${statusBadge(item.status)}</td><td><div class="portal-actions">${item.status==='pending'?`<button class="portal-button primary" data-activate-scheduled="${item.id}">Aufschalten</button>`:''}${linked?`<button class="portal-button" data-print-invoice="${linked.id}">PDF</button>`:''}<button class="portal-button danger" data-delete-scheduled="${item.id}">Löschen</button></div></td></tr>`;}).join(''):'<tr><td colspan="8" class="portal-empty">Keine terminierten Rechnungen vorhanden.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><div class="portal-actions"><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a><button class="portal-button primary" type="button" data-quick-invoice="${team.id}">Invoice Shortcut</button></div></article>`).join('')}</div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card reset-card" style="margin-top:15px"><h2>Daten zurücksetzen</h2>
@@ -894,7 +894,13 @@
       const scheduled = data.scheduledInvoices.filter(item=>item.teamId===selected.id).slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate));
       const driverRow = driver => `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(driver.name)}</strong><small>${driver.number!=null?`Startnummer ${driver.number} · `:''}${escapeHtml(driver.nationality||'Nationalität offen')}${driver.license?` · Lizenz ${escapeHtml(driver.license)}`:''}</small></div><button class="portal-button" type="button" data-new-driver-contract="${driver.id}">Vertrag anlegen</button></div>`;
       const contractRow = contract => { const driver=data.drivers.find(entry=>entry.id===contract.driverId); return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${driver?`${escapeHtml(driver.name)} · `:''}gültig bis ${date(contract.endDate)} · ${date(contract.createdAt)} eingereicht<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="helmet-btn" type="button" data-open-contract="${contract.id}" title="Vertrag im Seitenfenster öffnen" aria-label="Vertrag ${escapeHtml(contract.title)} öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></button><button class="portal-button" data-print-contract="${contract.id}">PDF</button></div></div>`; };
-      const scheduledRow = item => `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(item.description)}</strong><small>${money(item.amount)} · Rechnungsdatum ${date(item.sendDate)} · fällig ${date(item.dueDate)}</small></div><div class="portal-actions">${statusBadge(item.status)}${['pending','active'].includes(item.status)?`<button class="portal-button danger" type="button" data-delete-scheduled="${item.id}">Löschen</button>`:''}</div></div>`;
+      const scheduledRow = item => {
+        const recurring = item.installmentsTotal>1;
+        const rateAmount = item.total!=null && recurring ? Math.floor(item.total/item.installmentsTotal) : item.amount;
+        const progress = recurring ? `Rate ${item.installmentsSent}/${item.installmentsTotal}` : null;
+        const next = item.status==='active' && item.nextSendDate ? ` · nächste Rechnung ${date(item.nextSendDate)}` : '';
+        return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(item.description)}</strong><small>${recurring?`${money(rateAmount)} pro Rennen · gesamt ${money(item.total)} · ${progress}${next}`:`${money(item.amount)} · Rechnungsdatum ${date(item.sendDate)} · fällig ${date(item.dueDate)}`}</small></div><div class="portal-actions">${statusBadge(item.status)}${['pending','active'].includes(item.status)?`<button class="portal-button danger" type="button" data-delete-scheduled="${item.id}">Löschen</button>`:''}</div></div>`;
+      };
       panel = `<section class="eb-card" id="team-verwaltung"><h3>Team Verwaltung</h3><p class="eb-muted">Lege deine Fahrer selbst an, erstelle Fahrerverträge im geführten Ablauf und sende sie der Verwaltung zur Finanzüberprüfung. Terminierte Rechnungen kannst du hier ebenfalls vorbereiten.</p></section>
       <div class="eb-two" style="margin-top:16px">
         <section class="eb-card"><div class="eb-row-between"><h3>Fahrer</h3><button class="eb-btn" type="button" data-new-driver-contract="">Neuer Fahrervertrag</button></div>
@@ -903,13 +909,15 @@
         <section class="eb-card"><h3>Automatisierte Rechnung stellen</h3>
           <form class="portal-form" data-form="scheduled-invoice">
             <input type="hidden" name="teamId" value="${selected.id}">
-            <label class="full">Beschreibung<input name="description" maxlength="500" required placeholder="z. B. Startgebühr Saison 2026"></label>
-            <label>Betrag in EUR<input name="amount" type="number" min="0.01" step="0.01" required></label>
-            <label>Rechnungsdatum<input name="sendDate" type="date" required></label>
-            <label>Fällig am<input name="dueDate" type="date" required></label>
-            <div class="portal-actions full"><button class="eb-btn">Rechnung terminieren</button></div>
+            <label class="full">Beschreibung<input name="description" maxlength="500" required placeholder="z. B. Fahrerlöhne Saison 2026"></label>
+            <label>Gesamtbetrag in EUR<input name="totalAmount" type="number" min="0.01" step="0.01" required></label>
+            <label>Aufteilen auf<input name="installments" type="number" min="1" max="52" value="16" required> <span class="eb-muted">Rennen (Raten)</span></label>
+            <label>Erste Rechnung am<input name="sendDate" type="date" required></label>
+            <label>Fällig jeweils am<input name="dueDate" type="date" required></label>
+            <div class="full eb-rate-preview" data-rate-preview>Bitte Gesamtbetrag eingeben.</div>
+            <div class="portal-actions full"><button class="eb-btn">Wochenrechnung terminieren</button></div>
           </form>
-          <p class="eb-muted">Die Verwaltung schaltet die Rechnung manuell auf. Am gewählten Rechnungsdatum erscheint sie automatisch hier im E-Banking. Bei Bedarf kann sie gelöscht werden, z. B. falls dein Team nicht antreten kann.</p>
+          <p class="eb-muted">Der Gesamtbetrag wird automatisch durch die Anzahl Rennen geteilt. Ab dem Startdatum erscheint jede Woche eine Rechnung im E-Banking – nach der letzten Rate läuft die Reihe ab und kann neu gesetzt werden. Die Verwaltung schaltet jede Reihe manuell auf; bei Bedarf kann sie gelöscht werden, z. B. falls dein Team nicht antreten kann.</p>
         </section>
       </div>
       <section class="eb-card" style="margin-top:16px"><h3>Fahrerverträge</h3>
@@ -1143,12 +1151,21 @@
   }
 
   // Demo-Modus: terminierte Rechnungen erscheinen am gewählten Datum im E-Banking.
+  // Wiederkehrende Rechnungen stellen pro Fälligkeit eine Rate (Gesamtbetrag / Raten).
   function materializeLocalScheduledInvoices() {
     const today = new Date().toISOString().slice(0,10);
+    const addDays = (iso, days) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); };
     data.scheduledInvoices.forEach(item=>{
-      if (item.status==='active' && !item.invoiceId && item.sendDate<=today) {
-        const invoice = makeInvoice(item.teamId, item.amount, item.description, item.dueDate, `AUTO-${item.id.slice(0,8)}`);
-        item.status='sent'; item.invoiceId=invoice.id;
+      while (item.status==='active' && item.installmentsSent<item.installmentsTotal && (item.nextSendDate||item.sendDate)<=today) {
+        const rateIndex = item.installmentsSent+1;
+        const rateAmount = item.total!=null && item.installmentsTotal>1 ? Math.floor(item.total/item.installmentsTotal) : item.amount;
+        const description = item.installmentsTotal>1 ? `${item.description} (Rate ${rateIndex}/${item.installmentsTotal})` : item.description;
+        const dueDate = item.dueDate>=(item.nextSendDate||item.sendDate) ? item.dueDate : (item.nextSendDate||item.sendDate);
+        const invoice = makeInvoice(item.teamId, rateAmount, description, dueDate, `AUTO-${item.id.slice(0,8)}`);
+        item.installmentsSent = rateIndex;
+        item.invoiceId = invoice.id;
+        item.nextSendDate = addDays(item.nextSendDate||item.sendDate, item.intervalWeeks*7);
+        if (rateIndex>=item.installmentsTotal) item.status='sent';
       }
     });
   }
@@ -1475,12 +1492,15 @@
       const teamId = window.zfcProfile&&window.zfcProfile.role!=='admin' ? window.zfcProfile.team_id : fields.teamId;
       if (!teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
       if (!(fields.description||'').trim()) throw new Error('Bitte eine Beschreibung eingeben.');
-      if (!fields.sendDate || !fields.dueDate) throw new Error('Bitte Rechnungsdatum und Fälligkeitsdatum angeben.');
-      if (fields.dueDate<fields.sendDate) throw new Error('Das Fälligkeitsdatum muss am oder nach dem Rechnungsdatum liegen.');
-      const amount = cents(fields.amount);
-      let item = {id:uid(),teamId,description:fields.description.trim(),amount,sendDate:fields.sendDate,dueDate:fields.dueDate,status:'pending',invoiceId:null,createdAt:new Date().toISOString()};
+      if (!fields.sendDate || !fields.dueDate) throw new Error('Bitte Startdatum und Fälligkeitsdatum angeben.');
+      if (fields.dueDate<fields.sendDate) throw new Error('Das Fälligkeitsdatum muss am oder nach dem Startdatum liegen.');
+      const total = cents(fields.totalAmount);
+      const installments = Math.max(1, Math.min(52, Math.round(Number(fields.installments)||1)));
+      const rate = Math.floor(total/installments);
+      if (rate<=0) throw new Error('Der Gesamtbetrag geteilt durch die Raten muss mindestens 0,01 EUR ergeben.');
+      let item = {id:uid(),teamId,description:fields.description.trim(),amount:rate,sendDate:fields.sendDate,dueDate:fields.dueDate,status:'pending',invoiceId:null,total,installmentsTotal:installments,installmentsSent:0,intervalWeeks:1,nextSendDate:fields.sendDate,createdAt:new Date().toISOString()};
       if (window.zfcSupabase) {
-        const {data:row,error} = await window.zfcSupabase.from('scheduled_invoices').insert({team_id:teamId,description:item.description,amount_cents:amount,send_date:item.sendDate,due_date:item.dueDate,status:'pending',created_by:window.zfcProfile.id}).select('*').single();
+        const {data:row,error} = await window.zfcSupabase.from('scheduled_invoices').insert({team_id:teamId,description:item.description,amount_cents:rate,total_cents:total,installments_total:installments,installments_sent:0,interval_weeks:1,send_date:item.sendDate,due_date:item.dueDate,next_send_date:item.sendDate,status:'pending',created_by:window.zfcProfile.id}).select('*').single();
         if (error) throw new Error(`Rechnung konnte nicht terminiert werden: ${error.message}`);
         item = mapScheduledInvoice(row);
       }
@@ -1647,7 +1667,7 @@
   }
 
   function mapScheduledInvoice(row) {
-    return {id:row.id,teamId:row.team_id,description:row.description,amount:Number(row.amount_cents),sendDate:row.send_date,dueDate:row.due_date,status:row.status,invoiceId:row.invoice_id||null,createdAt:row.created_at};
+    return {id:row.id,teamId:row.team_id,description:row.description,amount:Number(row.amount_cents),sendDate:row.send_date,dueDate:row.due_date,status:row.status,invoiceId:row.invoice_id||null,total:row.total_cents!=null?Number(row.total_cents):null,installmentsTotal:Number(row.installments_total)||1,installmentsSent:Number(row.installments_sent)||0,intervalWeeks:Number(row.interval_weeks)||1,nextSendDate:row.next_send_date||null,createdAt:row.created_at};
   }
 
   function mapTicket(row) {
@@ -2222,6 +2242,14 @@
 
   document.addEventListener('input', event => {
     if (event.target.matches('[name="itemAmount"]')) updateInvoiceTotal(event.target.closest('[data-invoice-items]'));
+    if (event.target.closest('form[data-form="scheduled-invoice"]')) {
+      const form = event.target.closest('form[data-form="scheduled-invoice"]');
+      const preview = form.querySelector('[data-rate-preview]');
+      if (!preview) return;
+      const total = Math.round(Number(form.elements.totalAmount?.value)*100)||0;
+      const installments = Math.max(1, Math.round(Number(form.elements.installments?.value)||1));
+      preview.textContent = total>0 ? `Rate pro Rennen: ${money(Math.floor(total/installments))} · ${installments}× wöchentlich · letzte Rate ca. ${date(new Date(new Date(`${form.elements.sendDate||new Date().toISOString().slice(0,10)}T12:00:00`).getTime()+(installments-1)*7*86400000))}` : 'Bitte Gesamtbetrag eingeben.';
+    }
     if (event.target.matches('form[data-form="contract"] textarea[name="terms"]')) {
       event.target.dataset.manual = event.target.value.trim() ? '1' : '';
       return;

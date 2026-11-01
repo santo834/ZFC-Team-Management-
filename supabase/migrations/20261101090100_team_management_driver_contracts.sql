@@ -28,11 +28,23 @@ create table if not exists public.scheduled_invoices (
   due_date date not null,
   status text not null default 'pending' check (status in ('pending', 'active', 'sent', 'cancelled')),
   invoice_id uuid references public.invoices (id) on delete set null,
+  -- Wiederkehrende Wochenrechnung: Gesamtbetrag wird auf Raten (z. B. 16 Rennen) aufgeteilt.
+  total_cents bigint check (total_cents is null or total_cents between 1 and 100000000000),
+  installments_total integer not null default 1 check (installments_total between 1 and 52),
+  installments_sent integer not null default 0 check (installments_sent >= 0),
+  interval_weeks integer not null default 1 check (interval_weeks between 1 and 4),
+  next_send_date date,
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint scheduled_invoices_date_order_check check (due_date >= send_date)
 );
+
+alter table public.scheduled_invoices add column if not exists total_cents bigint check (total_cents is null or total_cents between 1 and 100000000000);
+alter table public.scheduled_invoices add column if not exists installments_total integer not null default 1 check (installments_total between 1 and 52);
+alter table public.scheduled_invoices add column if not exists installments_sent integer not null default 0 check (installments_sent >= 0);
+alter table public.scheduled_invoices add column if not exists interval_weeks integer not null default 1 check (interval_weeks between 1 and 4);
+alter table public.scheduled_invoices add column if not exists next_send_date date;
 
 create index if not exists drivers_team_id_idx on public.drivers (team_id);
 create index if not exists scheduled_invoices_team_id_idx on public.scheduled_invoices (team_id);
@@ -104,6 +116,8 @@ create policy "Admins and owning team delete scheduled invoices"
   );
 
 -- Erzeugt fällige terminierte Rechnungen im Teamkonto (wird beim Laden aufgerufen).
+-- Wiederkehrende Rechnungen: pro Fälligkeit eine Rate (Gesamtbetrag / Raten),
+-- nächster Termin jeweils +interval_weeks Wochen, bis alle Raten versendet sind.
 create or replace function public.materialize_scheduled_invoices()
 returns integer
 language plpgsql
@@ -114,14 +128,31 @@ declare
   item public.scheduled_invoices%rowtype;
   new_number text;
   created_count integer := 0;
+  rate_amount bigint;
+  rate_description text;
+  rate_due date;
+  rate_index integer;
 begin
   for item in
     select si.*
     from public.scheduled_invoices as si
     where si.status = 'active'
-      and si.send_date <= current_date
-      and si.invoice_id is null
+      and coalesce(si.next_send_date, si.send_date) <= current_date
+      and si.installments_sent < si.installments_total
   loop
+    rate_index := item.installments_sent + 1;
+    rate_amount := case
+      when item.total_cents is not null and item.installments_total > 1
+        then pg_catalog.floor(item.total_cents / item.installments_total)
+      else item.amount_cents
+    end;
+    rate_description := case
+      when item.installments_total > 1
+        then item.description || ' (Rate ' || rate_index || '/' || item.installments_total || ')'
+      else item.description
+    end;
+    rate_due := greatest(item.due_date, coalesce(item.next_send_date, item.send_date));
+
     loop
       new_number := pg_catalog.lpad(pg_catalog.floor(pg_catalog.random() * 9000000000 + 1000000000)::bigint::text, 10, '0');
       exit when not exists (select 1 from public.invoices as inv where inv.invoice_number = new_number);
@@ -130,13 +161,17 @@ begin
     insert into public.invoices (
       team_id, invoice_number, description, amount_cents, due_date, reference, created_by
     ) values (
-      item.team_id, new_number, item.description, item.amount_cents, item.due_date,
+      item.team_id, new_number, rate_description, rate_amount, rate_due,
       'AUTO-' || pg_catalog.substr(item.id::text, 1, 8), item.created_by
     )
     returning id into item.invoice_id;
 
     update public.scheduled_invoices
-    set status = 'sent', invoice_id = item.invoice_id, updated_at = pg_catalog.now()
+    set installments_sent = rate_index,
+        invoice_id = item.invoice_id,
+        next_send_date = coalesce(item.next_send_date, item.send_date) + (item.interval_weeks * 7),
+        status = case when rate_index >= item.installments_total then 'sent' else 'active' end,
+        updated_at = pg_catalog.now()
     where id = item.id;
 
     created_count := created_count + 1;

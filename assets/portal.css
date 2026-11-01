@@ -370,6 +370,7 @@ img.portal-team-mark{object-fit:contain;padding:4px;background:#ffffff14;border:
 .eb-raceweek-total small{color:var(--portal-muted);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
 .eb-raceweek-total strong{font-size:26px;color:var(--portal-text)}
 .eb-raceweek-total span{color:var(--portal-muted);font-size:12px}
+.eb-rate-preview{padding:10px 12px;border:1px dashed #39efff55;border-radius:8px;background:#39efff0d;font-size:13px;color:var(--portal-text)}
 
 @media(max-width:740px){
   .admin-shell .portal-topbar{margin:-18px -15px 4px;padding:14px 15px}
