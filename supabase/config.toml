@@ -1,4 +1,5 @@
-project_id = "yibyvdxrvnxfnmzmufnm"
+# Referenz des Supabase-Projekts (aus der Projekt-URL: https://<ref>.supabase.co)
+project_id = "rxzhwxmfhofgzejtahxr"
 
 [functions.public-purchase]
 verify_jwt = false

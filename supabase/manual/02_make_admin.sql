@@ -4,7 +4,7 @@
 
 do $$
 declare
-  admin_email text := 'DEINE-EMAIL@BEISPIEL.DE';  -- <- hier ändern
+  admin_email text := 's.barbosa.galaxy@gmail.com';  -- <- hier ändern
   target_id uuid;
 begin
   select id into target_id from auth.users where lower(email) = lower(admin_email);

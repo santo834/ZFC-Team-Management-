@@ -44,41 +44,31 @@ GitHub Pages bleibt statisch; Authentifizierung und gemeinsame Datenspeicherung 
 
 - Admin → **Team-E-Banking**: Team wählen, Verträge (Fahrer, Teamchef, Insurance, Sponsoring, HQ, Fahrerkauf) anlegen und offene Verträge annehmen, Monatsabrechnung und Rechnungen als PDF öffnen.
 - Eigene Angebotsbilder haben keine Größenbegrenzung mehr (sehr große Bilder werden automatisch verkleinert) und werden zentral gespeichert.
-- Entfernte Angebote werden wirklich gelöscht. Dafür sowie für die neuen Vertragsarten `npx supabase db push` ausführen.
+- Entfernte Angebote werden wirklich gelöscht. Schema-Änderungen werden über `supabase/manual/01_full_schema.sql` eingespielt.
 
 ## Supabase-Schema für Login und Rollen
 
-Die Migrationen unter `supabase/migrations/` legen Teams, Profile, Rollen, kategorisierte Angebote, Anfragen, Rechnungen, Kontobuchungen und Verträge an. Row-Level-Security begrenzt Teamdaten auf das zugewiesene Team. Teamchefs können nur Verträge ihres Teams beantworten; Admins können offene Verträge aller Teams annehmen. Edge Functions für öffentliche Anfragen und sichere Admin-Kontoanlage liegen unter `supabase/functions/`.
+Das komplette Schema liegt konsolidiert in **`supabase/manual/01_full_schema.sql`** (einzelne Migrationen gibt es nicht mehr). Es legt Teams, Profile, Rollen (Admin, Teamchef, Konzern), kategorisierte Angebote, Anfragen, Rechnungen, Kontobuchungen, Karten, Fahrer, Verträge, terminierte Rechnungen und Team-Termine an. Row-Level-Security begrenzt Teamdaten auf das zugewiesene Team. Teamchefs können nur Verträge ihres Teams beantworten; Admins können offene Verträge aller Teams annehmen. Edge Functions für öffentliche Anfragen und sichere Admin-Kontoanlage liegen unter `supabase/functions/`.
 
-Supabase CLI einmalig anmelden und das Projekt verknüpfen. Der persönliche Access Token wird ausschließlich direkt in der Terminalabfrage eingegeben, niemals in Chat, Code oder Browserdateien:
+Einrichtung eines neuen Supabase-Projekts:
+
+1. **Verbindung eintragen:** In `assets/supabase-config.js` die Projekt-URL (`Project Settings → Data API → Project URL`) und den öffentlichen `anon`/`publishable` Key (`Project Settings → API Keys`) eintragen. Den `service_role`-Schlüssel niemals hier oder in anderem Browser-Code hinterlegen.
+2. **Schema anlegen:** Im Supabase **SQL Editor** den kompletten Inhalt von `supabase/manual/01_full_schema.sql` einfügen und ausführen. Achtung: Das Skript setzt das Schema `public` vollständig zurück (inkl. Daten) – nur für ein **neues, leeres** Projekt verwenden.
+3. **Admin anlegen:** Unter **Authentication → Users** das eigene Konto mit E-Mail und Passwort erstellen, danach `supabase/manual/02_make_admin.sql` mit der eigenen E-Mail im SQL Editor ausführen.
+4. **Teamchefs zuweisen:** Weitere Konten unter **Authentication → Users** anlegen; nach der E-Mail-Bestätigung erscheinen sie im Admin unter **Benutzer & Rollen** und bekommen dort Rolle und Team.
+
+**Bestehendes Projekt aktualisieren (ohne Datenverlust):** Wenn auf der Datenbank bereits Daten vorhanden sind (Rechnungen, Buchungen, Verträge, Anfragen, Fahrer, terminierte Rechnungen der Teamchefs), **nicht** `01_full_schema.sql` ausführen. Stattdessen `supabase/manual/03_upgrade_safe.sql` im SQL Editor ausführen – es ergänzt fehlende Strukturen, stellt terminierte Rechnungen auf das Dauerauftrag-Modell um und bringt Funktionen, RLS und Realtime auf den neuesten Stand, ohne eine einzige Zeile zu löschen. Das Skript ist mehrfach ausführbar.
+
+Optional (nur nötig, wenn auch **nicht eingeloggte** Besucher öffentliche Anfragen senden sollen) die Edge Functions deployen. Eingeloggte Teamchefs senden Anfragen direkt über die Datenbank und brauchen keine Function:
 
 ```sh
 npx supabase login
-npx supabase link --project-ref yibyvdxrvnxfnmzmufnm
+npx supabase link --project-ref DEIN-PROJEKT-REF
+npx supabase functions deploy public-purchase
+npx supabase functions deploy admin-assign-role
 ```
 
-Neue Migrationen, einschließlich der Admin-Annahme für Verträge, mit dem folgenden Befehl auf das Projekt anwenden:
-
-```sh
-npx supabase db push
-```
-
-`assets/supabase-config.js` enthält bereits die Projekt-URL und den öffentlichen Publishable-Key. Den `service_role`-Schlüssel niemals hier oder in anderem Browser-Code hinterlegen.
-
-Die Edge Functions für öffentliche Kaufanfragen und Admin-Rollenzuweisungen deployen:
-
-```sh
-npx supabase functions deploy public-purchase --project-ref yibyvdxrvnxfnmzmufnm
-npx supabase functions deploy admin-assign-role --project-ref yibyvdxrvnxfnmzmufnm
-```
-
-Im Supabase Auth Dashboard den Benutzer `s.barbosa.galaxy@gmail.com` mit einem sicheren Passwort anlegen und die Bestätigungs-E-Mail abschließen. Danach im **SQL Editor** das Profil zum Admin machen (die Migration kann das nur übernehmen, wenn der Benutzer zu diesem Zeitpunkt bereits existiert):
-
-```sql
-update public.profiles
-set role = 'admin', team_id = null
-where id = (select id from auth.users where lower(email) = 's.barbosa.galaxy@gmail.com');
-```
+Teamchef einem Team zuordnen (alternativ zum Admin-Panel, den Teamnamen und die interne ID kannst du in der Teamtabelle nachsehen):
 
 Teamchef einem Team zuordnen (den Teamnamen und die interne ID kannst du in der Teamtabelle nachsehen):
 
@@ -89,7 +79,13 @@ set role = 'team_chief',
 where id = (select id from auth.users where email = 'chef@example.com');
 ```
 
-Zusätzliche Konten werden direkt im Supabase Dashboard unter **Authentication → Users** mit E-Mail und Passwort angelegt. Nach der E-Mail-Bestätigung erzeugt der Datenbank-Trigger das Profil. Im Admin unter **Benutzer & Rollen** weist du anschließend `Admin` oder `Teamchef` zu; Teamchefs benötigen zusätzlich ein Team. Die Function `admin-assign-role` erlaubt diese Änderung nur für angemeldete Admins. `public-purchase` prüft Angebot und Preis serverseitig und begrenzt Anfragen je E-Mail-Adresse.
+Zusätzliche Konten werden direkt im Supabase Dashboard unter **Authentication → Users** mit E-Mail und Passwort angelegt. Nach der E-Mail-Bestätigung erzeugt der Datenbank-Trigger das Profil. Im Admin unter **Benutzer & Rollen** weist du anschließend `Admin`, `Teamchef` oder `Konzern` (zwei Teams) zu; Teamchefs benötigen zusätzlich ein Team. Die Function `admin-assign-role` erlaubt diese Änderung nur für angemeldete Admins. `public-purchase` prüft Angebot und Preis serverseitig und begrenzt Anfragen je E-Mail-Adresse.
+
+Neu hinzugekommen:
+
+- **Angebots-Anfragen der Teamchefs:** Eingeloggte Teamchefs senden Anfragen zu Insurance-, Sponsoring- und HQ-Angeboten direkt aus dem E-Banking oder von der öffentlichen Angebotsseite; sie erscheinen sofort im Admin unter **Kaufanfragen**.
+- **Team-Termine:** Die Verwaltung legt im Admin unter **Termine** Pflichttermine (Training, Testing, Rennen, Meeting, Sonstiges) pro Team fest; Teams sehen sie im E-Banking unter **Termine** und in der Konto-Übersicht.
+- **Vertrags-Boxen:** Verträge erscheinen im Admin und im E-Banking als kompakte Karten (bei Fahrerverträgen mit dem Fahrernamen als Titel); ein Klick auf die Karte öffnet alle Vertragsdetails im Seitenfenster.
 
 Der Storage-Bucket `portal-media` ist für Website-Bilder vorbereitet. Bild-Uploads, Verträge und Supportmeldungen sind noch nicht in die gemeinsame Datenbank integriert.
 

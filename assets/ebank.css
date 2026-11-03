@@ -88,4 +88,30 @@ body.eb-active{background:#dfe9e4;color:#17302a}
 .eb .portal-kicker{color:#2f7a62}
 .eb .portal-empty{color:#6a7f77}
 
+/* Vertrags-Boxen im hellen E-Banking */
+.eb .contract-card{background:#fff;border-color:#d6e2db;box-shadow:0 2px 8px #2f5d4e10}
+.eb .contract-card:hover,.eb .contract-card:focus-visible{border-color:var(--cc-accent);box-shadow:0 4px 16px #2f5d4e1c}
+.eb .cc-icon{background:color-mix(in srgb,var(--cc-accent) 12%,#fff)}
+.eb .cc-copy small{color:#6a7f77}
+.eb .contract-card .portal-button{background:#fff;border-color:#c9d9d0;color:#17302a}
+.eb .contract-card .portal-button:hover{border-color:#2f5d4e;box-shadow:0 2px 8px #2f5d4e1a}
+.eb .contract-card .portal-button.primary{background:#2f5d4e;border-color:#2f5d4e;color:#fff}
+
+/* Termine im hellen E-Banking */
+.eb-side-col{display:grid;gap:18px;align-content:start}
+.eb-appt-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.eb-appt-list li{display:flex;align-items:center;gap:10px}
+.eb-appt-list small{display:block;color:#6a7f77}
+.eb .appt-card{background:#fff;border-color:#d6e2db;box-shadow:0 2px 8px #2f5d4e10}
+.eb .appt-date{background:#eef4f0;border-color:#c9d9d0}
+.eb .appt-date strong{color:#2f5d4e}
+.eb .appt-date span{color:#6a7f77}
+.eb .appt-copy small{color:#6a7f77}
+.eb .appt-badge{border-color:#c9d9d0;color:#4d6a5f}
+.eb .appt-training{border-color:#7fb8d9;color:#2b6a8f;background:#eaf4fa}
+.eb .appt-testing{border-color:#ecd392;color:#8a6410;background:#fdf6e3}
+.eb .appt-rennen{border-color:#e5a09a;color:#b0412f;background:#fbecea}
+.eb .appt-meeting{border-color:#b3c4f5;color:#4356a8;background:#eef2fd}
+.eb .appt-sonstiges{border-color:#9bd0b5;color:#1d7a4d;background:#eaf7f0}
+
 @media(max-width:860px){.eb-top,.eb-bottom,.eb-two{grid-template-columns:1fr}.eb-main-side{text-align:left}}

@@ -27,6 +27,9 @@
   const teamLogo = team => data?.teamLogos?.[team.id] || new URL(`team-logos/${team.logo || team.id}.svg`, assetBase).href;
   const money = cents => new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format((Number(cents)||0)/100);
   const date = value => new Intl.DateTimeFormat('de-CH',{dateStyle:'medium'}).format(new Date(value));
+  const dateTime = value => new Intl.DateTimeFormat('de-CH',{dateStyle:'medium',timeStyle:'short'}).format(new Date(value));
+  const APPOINTMENT_CATEGORIES = [['training','Training'],['testing','Testing'],['rennen','Rennen'],['meeting','Meeting'],['sonstiges','Sonstiges']];
+  const appointmentCategoryName = key => Object.fromEntries(APPOINTMENT_CATEGORIES)[key] || 'Sonstiges';
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const uid = () => crypto.randomUUID();
   const $ = (selector, root=document) => root.querySelector(selector);
@@ -105,7 +108,7 @@
     if (limit>0 && generated.length>limit) generated = generated.slice(0,limit);
     terms.value = generated;
   }
-  const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[],drivers:[],scheduledInvoices:[]});
+  const emptyData = () => ({home:{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.',image:GALLERY_IMAGE},teamLogos:{},offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[],drivers:[],scheduledInvoices:[],appointments:[]});
   let data, currentTeamId, currentTeamTab='account', currentAdminTab='overview', adminProfiles=[], adminTeamId=teams[0].id, statementMonth=new Date().toISOString().slice(0,7);
 
   function readImage(file) {
@@ -140,7 +143,7 @@
 
   function save() {
     try {
-      const shared = window.zfcSupabase ? {offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[],drivers:[],scheduledInvoices:[]} : {};
+      const shared = window.zfcSupabase ? {offers:[],orders:[],invoices:[],contracts:[],bookings:[],tickets:[],cards:[],cardRequests:[],drivers:[],scheduledInvoices:[],appointments:[]} : {};
       if (window.zfcSupabase) shared.teamLogos={};
       localStorage.setItem(STORAGE_KEY, JSON.stringify({...data,...shared}));
       return true;
@@ -325,6 +328,49 @@
     return `<span class="portal-badge ${color}">${labels[status] || escapeHtml(status)}</span>`;
   }
 
+  // Vertrags-Karten: Typ bestimmt Farbe und Icon der kompakten Box.
+  const CONTRACT_TYPE_META = {
+    driver:{color:'#39efff',fill:true,icon:'<path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/>'},
+    team_principal:{color:'#ea668f',icon:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'},
+    insurance:{color:'#f3c66b',icon:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'},
+    sponsoring:{color:'#c7f36b',icon:'<path d="M20.6 13.4L11 3H4v7l9.6 10.4a2 2 0 0 0 2.8 0l4.2-4.2a2 2 0 0 0 0-2.8z"/><circle cx="8" cy="7" r="1.4"/>'},
+    hq:{color:'#9db4ff',icon:'<path d="M3 21h18"/><path d="M4 10h16"/><path d="M12 3l9 6H3l9-6z"/><path d="M6 10v11M18 10v11M10 14v4M14 14v4"/>'},
+    driver_purchase:{color:'#f08a4b',icon:'<path d="M17 3l4 4-4 4"/><path d="M21 7H8"/><path d="M7 21l-4-4 4-4"/><path d="M3 17h13"/>'},
+    vehicle:{color:'#a8b6c5',icon:'<path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11"/><path d="M3 17v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="16.5" cy="17.5" r="1.5"/>'}
+  };
+
+  // Kompakte, breite Vertrags-Box. Bei Fahrerverträgen ist der Fahrername der Titel.
+  // Ein Klick auf die Box öffnet das Seitenfenster mit allen Vertragsdetails.
+  function contractCardHtml(contract, {showTeam=false, actions=''}={}) {
+    const meta = CONTRACT_TYPE_META[contract.type] || CONTRACT_TYPE_META.vehicle;
+    const driver = data.drivers.find(entry=>entry.id===contract.driverId);
+    const title = contract.type==='driver'
+      ? (driver?.name || contract.title.replace(/^Fahrervertrag\s*/,'') || contract.title)
+      : contract.title;
+    const subtitle = [
+      contractTypeName(contract.type),
+      showTeam ? teamName(contract.teamId) : null,
+      driver && contract.type!=='driver' ? `Fahrer: ${driver.name}` : null,
+      `gültig bis ${date(contract.endDate)}`
+    ].filter(Boolean).join(' · ');
+    return `<article class="contract-card" style="--cc-accent:${meta.color}" data-open-contract="${contract.id}" role="button" tabindex="0" aria-label="Vertrag ${escapeHtml(title)} öffnen">
+      <span class="cc-icon"${meta.fill?' data-cc-fill':''}><svg viewBox="0 0 24 24"${meta.fill?'':' fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"'} aria-hidden="true">${meta.icon}</svg></span>
+      <div class="cc-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(subtitle)}</small></div>
+      <div class="cc-side">${statusBadge(contract.status)}${actions?`<div class="cc-actions">${actions}</div>`:''}</div>
+    </article>`;
+  }
+
+  // Termin-Karte für Admin-Panel und Team-E-Banking.
+  function appointmentCardHtml(item, {admin=false}={}) {
+    const start = new Date(item.startsAt);
+    const past = start.getTime() < Date.now();
+    return `<div class="appt-card${past?' past':''}">
+      <div class="appt-date"><strong>${start.toLocaleDateString('de-CH',{day:'2-digit'})}</strong><span>${start.toLocaleDateString('de-CH',{month:'short'})}</span><span>${start.getFullYear()}</span></div>
+      <div class="appt-copy"><strong>${escapeHtml(item.title)}</strong><small>${admin?`${escapeHtml(teamName(item.teamId))} · `:''}${dateTime(item.startsAt)} Uhr${item.location?` · ${escapeHtml(item.location)}`:''}${item.notes?`<br>${escapeHtml(item.notes)}`:''}</small></div>
+      <div class="appt-side"><span class="appt-badge appt-${escapeHtml(item.category)}">${escapeHtml(appointmentCategoryName(item.category))}</span>${admin?`<button class="portal-button danger" type="button" data-delete-appointment="${item.id}">Löschen</button>`:''}</div>
+    </div>`;
+  }
+
   const ADMIN_ICONS = {
     overview:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
     content:'<path d="M3 11l9-8 9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/>',
@@ -334,6 +380,7 @@
     finance:'<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/>',
     contracts:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>',
     teamcontracts:'<path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/>',
+    appointments:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 16l2 2 4-4"/>',
     cards:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>',
     accounts:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     tickets:'<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>'
@@ -341,7 +388,7 @@
 
   function layout(active, content, title='Admin Control Center') {
     const navigation = [
-      ['overview','Übersicht'],['content','Startseite & Galaxy'],['offers','Angebote'],['orders','Kaufanfragen'],['ebanking','Team-E-Banking'],['finance','Teamkonten & Rechnungen'],['contracts','Verträge'],['teamcontracts','Team-Verträge'],['cards','Kreditkarten'],['accounts','Benutzer & Rollen'],['tickets','Probleme & Meldungen']
+      ['overview','Übersicht'],['content','Startseite & Galaxy'],['offers','Angebote'],['orders','Kaufanfragen'],['ebanking','Team-E-Banking'],['finance','Teamkonten & Rechnungen'],['contracts','Verträge'],['teamcontracts','Team-Verträge'],['appointments','Termine'],['cards','Kreditkarten'],['accounts','Benutzer & Rollen'],['tickets','Probleme & Meldungen']
     ];
     const navButton = ([key,label]) => `<button type="button" data-admin-tab="${key}" class="${active===key?'active':''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ADMIN_ICONS[key]||''}</svg><span>${label}</span></button>`;
     return `<div class="portal-shell admin-shell"><aside class="portal-sidebar">
@@ -540,7 +587,7 @@
       const pendingScheduled = data.scheduledInvoices.filter(item=>item.status==='pending');
       const notifications = [
         ...reviewContracts.map(contract=>({title:contract.title,meta:`Fahrervertrag · ${teamName(contract.teamId)} · eingereicht ${date(contract.createdAt)}`,tab:'contracts',status:contract.status})),
-        ...pendingScheduled.map(item=>({title:item.description,meta:`Terminierte Rechnung · ${teamName(item.teamId)} · ${money(item.amount)} · Rechnungsdatum ${date(item.sendDate)}`,tab:'finance',status:item.status}))
+        ...pendingScheduled.map(item=>({title:item.description,meta:`Dauerauftrag · ${teamName(item.teamId)} · ${money(item.total)}${item.installmentsTotal>1?` in ${item.installmentsTotal} Raten`:''} · ab ${date(item.startDate)}`,tab:'finance',status:item.status}))
       ];
       content = `${heading('Control Center','Guten Tag, Admin.','Alle wichtigen Vorgänge und Teamkonten an einem Ort.')}
         <div class="portal-grid">
@@ -603,16 +650,16 @@
           <div class="portal-actions"><button class="portal-button">Buchung erfassen</button></div>
         </form></section></div>
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungsjournal</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Rechnung</th><th>Team</th><th>Fällig</th><th>Betrag</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.invoices.length?data.invoices.slice().reverse().map(invoice=>`<tr><td>${escapeHtml(invoice.number)}<br>${escapeHtml(invoice.description)}</td><td>${escapeHtml(teamName(invoice.teamId))}</td><td>${date(invoice.dueDate)}</td><td>${money(invoice.amount)}</td><td>${statusBadge(invoice.status)}</td><td><div class="portal-actions"><button class="portal-button" data-edit-record="invoice" data-record-id="${invoice.id}">Bearbeiten</button><button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></td></tr>`).join(''):'<tr><td colspan="6" class="portal-empty">Noch keine Rechnungen.</td></tr>'}</tbody></table></div></section>
-        <section class="portal-card" style="margin-top:15px"><h2>Terminierte Rechnungen</h2><p class="portal-muted">Von Teams vorbereitete automatisierte Rechnungen. Nach der manuellen Aufschaltung erscheinen sie ab dem Startdatum wöchentlich im E-Banking des Teams, bis alle Raten abgerechnet sind. Bei Bedarf können sie gelöscht werden, z. B. wenn ein Team nicht antreten kann.</p><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Beschreibung</th><th>Team</th><th>Rate / Gesamt</th><th>Start</th><th>Fällig</th><th>Fortschritt</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.scheduledInvoices.length?data.scheduledInvoices.slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate)).map(item=>{const linked=data.invoices.find(invoice=>invoice.id===item.invoiceId);const recurring=item.installmentsTotal>1;const rateAmount=item.total!=null&&recurring?Math.floor(item.total/item.installmentsTotal):item.amount;return `<tr><td>${escapeHtml(item.description)}</td><td>${escapeHtml(teamName(item.teamId))}</td><td>${money(rateAmount)}${recurring?`<br><span class="portal-muted">gesamt ${money(item.total)}</span>`:''}</td><td>${date(item.sendDate)}</td><td>${date(item.dueDate)}</td><td>${recurring?`Rate ${item.installmentsSent}/${item.installmentsTotal}${item.status==='active'&&item.nextSendDate?`<br><span class="portal-muted">nächste ${date(item.nextSendDate)}</span>`:''}`:'—'}</td><td>${statusBadge(item.status)}</td><td><div class="portal-actions">${item.status==='pending'?`<button class="portal-button primary" data-activate-scheduled="${item.id}">Aufschalten</button>`:''}${linked?`<button class="portal-button" data-print-invoice="${linked.id}">PDF</button>`:''}<button class="portal-button danger" data-delete-scheduled="${item.id}">Löschen</button></div></td></tr>`;}).join(''):'<tr><td colspan="8" class="portal-empty">Keine terminierten Rechnungen vorhanden.</td></tr>'}</tbody></table></div></section>
+        <section class="portal-card" style="margin-top:15px"><h2>Daueraufträge &amp; terminierte Rechnungen</h2><p class="portal-muted">Von Teams vorbereitete Daueraufträge: Der Gesamtbetrag wird auf die Anzahl Raten aufgeteilt und erscheint nach der manuellen Aufschaltung gleichmässig verteilt zwischen Start- und Enddatum im E-Banking des Teams. Bei Bedarf können sie gelöscht werden, z. B. wenn ein Team nicht antreten kann.</p><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Beschreibung</th><th>Team</th><th>Rate / Gesamt</th><th>Zeitraum</th><th>Fortschritt</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${data.scheduledInvoices.length?data.scheduledInvoices.slice().sort((a,b)=>new Date(a.startDate)-new Date(b.startDate)).map(item=>{const linked=data.invoices.find(invoice=>invoice.id===item.invoiceId);const recurring=item.installmentsTotal>1;return `<tr><td>${escapeHtml(item.description)}</td><td>${escapeHtml(teamName(item.teamId))}</td><td>${money(item.amount)}${recurring?`<br><span class="portal-muted">gesamt ${money(item.total)}</span>`:''}</td><td>${date(item.startDate)}${recurring?`<br><span class="portal-muted">bis ${date(item.endDate)}</span>`:''}</td><td>${recurring?`Rate ${item.installmentsSent}/${item.installmentsTotal}${item.status==='active'&&item.nextSendDate?`<br><span class="portal-muted">nächste ${date(item.nextSendDate)}</span>`:''}`:'Einmalzahlung'}</td><td>${statusBadge(item.status)}</td><td><div class="portal-actions">${item.status==='pending'?`<button class="portal-button primary" data-activate-scheduled="${item.id}">Aufschalten</button>`:''}${linked?`<button class="portal-button" data-print-invoice="${linked.id}">PDF</button>`:''}<button class="portal-button danger" data-delete-scheduled="${item.id}">Löschen</button></div></td></tr>`;}).join(''):'<tr><td colspan="7" class="portal-empty">Keine terminierten Rechnungen vorhanden.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Teamkonten & Startkapital</h2><div class="portal-grid">${teams.map(team=>`<article class="portal-card" data-initial-capital-team="${team.id}"><div class="portal-item"><img class="portal-team-mark" style="object-fit:contain;background:transparent" src="${escapeHtml(teamLogo(team))}" alt="${escapeHtml(team.name)}-Logo"><strong>${escapeHtml(team.name)}</strong></div><div class="portal-stat">${money(balance(team.id))}</div><label class="portal-label-text">Startkapital in EUR<input class="portal-select" data-initial-capital type="number" min="0" step="0.01" value="${(team.initialBalance/100).toFixed(2)}"></label><button class="portal-button" type="button" data-save-initial-capital="${team.id}">Startkapital speichern</button><div class="portal-actions"><a class="portal-button" href="../team/index.html?team=${team.id}">Team-E-Banking öffnen ↗</a><button class="portal-button primary" type="button" data-quick-invoice="${team.id}">Invoice Shortcut</button></div></article>`).join('')}</div></section>
         <section class="portal-card" style="margin-top:15px"><h2>Kontobuchungen</h2><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Team</th><th>Datum</th><th>Verwendungszweck</th><th>Betrag</th><th>Aktion</th></tr></thead><tbody>${data.bookings.length?data.bookings.map(entry=>`<tr><td>${escapeHtml(teamName(entry.teamId))}</td><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td>${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td><td><button class="portal-button" data-edit-record="booking" data-record-id="${entry.id}">Bearbeiten</button></td></tr>`).join(''):'<tr><td colspan="5" class="portal-empty">Noch keine Buchungen.</td></tr>'}</tbody></table></div></section>
         <section class="portal-card reset-card" style="margin-top:15px"><h2>Daten zurücksetzen</h2>
-          <p class="portal-muted">Löscht alle Rechnungen, Kontobuchungen, Kaufanfragen, Verträge, Tickets und Kredit-Anträge und setzt die Teamkonten (inkl. Startkapital) auf 0 zurück. Karten bleiben bestehen. Das kann nicht rückgängig gemacht werden, z. B. für den Start einer neuen Saison.</p>
+          <p class="portal-muted">Löscht alle Rechnungen, Kontobuchungen, Kaufanfragen, Verträge, Tickets, Kredit-Anträge, terminierten Rechnungen und Termine und setzt die Teamkonten (inkl. Startkapital) auf 0 zurück. Karten und Fahrer bleiben bestehen. Das kann nicht rückgängig gemacht werden, z. B. für den Start einer neuen Saison.</p>
           <div class="portal-actions"><button class="portal-button danger" type="button" data-reset-data>Alle Daten zurücksetzen</button></div></section>`;
     } else if (tab==='contracts') {
       const inReviewContracts = data.contracts.filter(contract=>contract.status==='in_review').slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
       content = `${heading('Dokumentenverwaltung','Verträge','Vertragsentwürfe für Sponsoring, Versicherung, HQ und Fahrzeuge dem Team zur Prüfung vorlegen. Von Teams eingereichte Fahrerverträge prüfst du hier zur Finanzüberprüfung.')}
-        ${inReviewContracts.length?`<section class="portal-card review-card"><h2>Fahrerverträge zur Finanzprüfung</h2><div class="portal-item-list">${inReviewContracts.map(contract=>{const driver=data.drivers.find(entry=>entry.id===contract.driverId);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(teamName(contract.teamId))}${driver?` · ${escapeHtml(driver.name)}`:''} · gültig bis ${date(contract.endDate)} · eingereicht ${date(contract.createdAt)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button primary" data-review-contract="${contract.id}" data-review-accept="1">Freigeben</button><button class="portal-button danger" data-review-contract="${contract.id}" data-review-accept="0">Ablehnen</button></div></div>`;}).join('')}</div></section>`:''}
+        ${inReviewContracts.length?`<section class="portal-card review-card"><h2>Fahrerverträge zur Finanzprüfung</h2><div class="contract-list">${inReviewContracts.map(contract=>contractCardHtml(contract,{showTeam:true,actions:`<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button primary" data-review-contract="${contract.id}" data-review-accept="1">Freigeben</button><button class="portal-button danger" data-review-contract="${contract.id}" data-review-accept="0">Ablehnen</button>`})).join('')}</div></section>`:''}
         <div class="portal-grid two"><section class="portal-card"><h2>Vertragsentwurf anlegen</h2><form class="portal-form" data-form="contract" data-return-tab="contracts">
           <label>Team${teamSelect(adminTeamId)}</label><label>Vertragsart<select name="type">${contractTypeOptions()}</select></label>
           ${contractFieldsHtml('driver')}
@@ -620,15 +667,11 @@
           <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea><small class="portal-muted">Wird automatisch aus den Vertragsdetails vorbereitet und kann hier angepasst werden.</small></label>
           <label>Gültig bis<input name="endDate" type="date" required></label><div class="portal-actions"><button class="portal-button primary">Zur Prüfung senden</button></div>
         </form></section><section class="portal-card"><h2>Hinweis</h2><p>Das Formular passt sich der gewählten Vertragsart an: Sobald du eine Vertragsart auswählst, erscheinen die passenden Eingabefelder und die Konditionen werden automatisch vorbereitet.</p><p>Die Annahme im Demo-Portal ist keine rechtsverbindliche elektronische Signatur. Vor echten Vereinbarungen sind Backend, Identitätsprüfung und rechtliche Dokumente erforderlich.</p></section></div>
-        <section class="portal-card" style="margin-top:15px"><h2>Vertragsübersicht</h2><div class="portal-item-list">${data.contracts.length?data.contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · ${escapeHtml(teamName(contract.teamId))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
+        <section class="portal-card" style="margin-top:15px"><h2>Vertragsübersicht</h2><div class="contract-list">${data.contracts.length?data.contracts.slice().reverse().map(contract=>contractCardHtml(contract,{showTeam:true,actions:`<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button>`})).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
     } else if (tab==='teamcontracts') {
       const teamContracts = data.contracts.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-      const row = contract => {
-        const driver = data.drivers.find(entry=>entry.id===contract.driverId);
-        return `<tr><td><strong>${escapeHtml(contract.title)}</strong><br><span class="portal-muted">${escapeHtml(contractTypeName(contract.type))}${driver?` · Fahrer: ${escapeHtml(driver.name)}`:''} · gültig bis ${date(contract.endDate)} · erstellt ${date(contract.createdAt)}<br>${escapeHtml(contract.terms)}</span></td><td>${escapeHtml(teamName(contract.teamId))}</td><td>${statusBadge(contract.status)}</td><td><div class="portal-actions">${contract.type==='driver'?`<button class="helmet-btn" type="button" data-open-contract="${contract.id}" title="Vertrag im Seitenfenster öffnen" aria-label="Vertrag ${escapeHtml(contract.title)} öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></button>`:''}<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button><button class="portal-button danger" data-delete-contract="${contract.id}">Löschen</button></div></td></tr>`;
-      };
-      content = `${heading('Team-Verwaltung','Team-Verträge','Alle Verträge der Teams – inklusive der von Teamchefs eingereichten Fahrerverträge – direkt bearbeiten oder löschen.')}
-        <section class="portal-card"><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Vertrag</th><th>Team</th><th>Status</th><th>Aktion</th></tr></thead><tbody>${teamContracts.length?teamContracts.map(row).join(''):'<tr><td colspan="4" class="portal-empty">Noch keine Verträge erfasst.</td></tr>'}</tbody></table></div></section>`;
+      content = `${heading('Team-Verwaltung','Team-Verträge','Alle Verträge der Teams – inklusive der von Teamchefs eingereichten Fahrerverträge – direkt bearbeiten oder löschen. Klick auf eine Box öffnet den vollständigen Vertrag.')}
+        <section class="portal-card"><div class="contract-list">${teamContracts.length?teamContracts.map(contract=>contractCardHtml(contract,{showTeam:true,actions:`<button class="portal-button" data-print-contract="${contract.id}">PDF</button><button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button><button class="portal-button danger" data-delete-contract="${contract.id}">Löschen</button>`})).join(''):'<div class="portal-empty">Noch keine Verträge erfasst.</div>'}</div></section>`;
     } else if (tab==='ebanking') {
       const team = teams.find(entry=>entry.id===adminTeamId) || teams[0];
       const teamContracts = data.contracts.filter(contract=>contract.teamId===team.id);
@@ -646,9 +689,25 @@
           <label class="full">Titel<input name="title" maxlength="100" required></label>
           <label class="full">Konditionen / Zusammenfassung<textarea name="terms" maxlength="1500" required></textarea><small class="portal-muted">Wird automatisch aus den Vertragsdetails vorbereitet und kann hier angepasst werden.</small></label>
           <div class="portal-actions"><button class="portal-button primary">Vertrag anlegen</button></div></form></section>
-        <section class="portal-card"><h2>Verträge</h2><div class="portal-item-list">${teamContracts.length?teamContracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button></div></div>`).join(''):'<div class="portal-empty">Noch keine Verträge für dieses Team.</div>'}</div></section></div>
+        <section class="portal-card"><h2>Verträge</h2><div class="contract-list">${teamContracts.length?teamContracts.slice().reverse().map(contract=>contractCardHtml(contract,{actions:`<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="portal-button primary" data-admin-accept-contract="${contract.id}">Als Admin annehmen</button>`:''}<button class="portal-button" data-edit-record="contract" data-record-id="${contract.id}">Bearbeiten</button>`})).join(''):'<div class="portal-empty">Noch keine Verträge für dieses Team.</div>'}</div></section></div>
         ${statementSection(team.id)}
         <section class="portal-card" style="margin-top:15px"><h2>Rechnungen</h2><div class="portal-item-list">${teamInvoices.length?teamInvoices.slice().reverse().map(invoice=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF</button>${invoice.status==='payment_requested'?`<button class="portal-button primary" data-confirm-payment="${invoice.id}">Zahlung bestätigen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>`;
+    } else if (tab==='appointments') {
+      const sorted = data.appointments.slice().sort((a,b)=>new Date(a.startsAt)-new Date(b.startsAt));
+      const upcoming = sorted.filter(item=>new Date(item.startsAt).getTime()>=Date.now());
+      const past = sorted.filter(item=>new Date(item.startsAt).getTime()<Date.now()).reverse();
+      content = `${heading('Team-Termine','Termine verwalten','Lege Pflichttermine wie Trainings, Testings oder Meetings fest – sie erscheinen sofort im E-Banking des Teams.')}
+        <div class="portal-grid two"><section class="portal-card"><h2>Neuen Termin anlegen</h2><form class="portal-form" data-form="appointment">
+          <label class="full">Team${teamSelect()}</label>
+          <label class="full">Titel<input name="title" maxlength="120" required placeholder="z. B. Boxenstopp-Training"></label>
+          <label>Kategorie<select name="category">${APPOINTMENT_CATEGORIES.map(([key,label])=>`<option value="${key}">${label}</option>`).join('')}</select></label>
+          <label>Datum &amp; Uhrzeit<input name="startsAt" type="datetime-local" required></label>
+          <label class="full">Ort<input name="location" maxlength="120" placeholder="z. B. Werkshalle, Simulator, Strecke"></label>
+          <label class="full">Notizen<textarea name="notes" maxlength="1000" placeholder="Weitere Details zum Termin …"></textarea></label>
+          <div class="portal-actions"><button class="portal-button primary">Termin speichern</button></div>
+        </form></section>
+        <section class="portal-card"><h2>Kommende Termine (${upcoming.length})</h2><div class="appt-list">${upcoming.length?upcoming.map(item=>appointmentCardHtml(item,{admin:true})).join(''):'<div class="portal-empty">Keine kommenden Termine geplant.</div>'}</div>
+        ${past.length?`<h2 style="margin-top:18px">Vergangene Termine</h2><div class="appt-list">${past.map(item=>appointmentCardHtml(item,{admin:true})).join('')}</div>`:''}</section></div>`;
     } else if (tab==='accounts') {
       content = `${heading('Zugriffsverwaltung','Benutzer & Rollen','Lege Konten unter Supabase Auth an und weise ihnen hier die Rolle und bei Teamchefs das Team zu.')}
         <section class="portal-card"><div class="portal-actions" style="margin-bottom:12px"><button class="portal-button" type="button" data-refresh-profiles>Profile aktualisieren</button></div><div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Team</th><th></th></tr></thead><tbody>
@@ -862,7 +921,7 @@
     const requests = data.cardRequests.filter(request=>request.teamId===selected.id);
     const pendingRequest = requests.find(request=>request.status==='pending');
     const cardName = entry => cards.find(card=>card.id===entryCardId(entry))?.label || '–';
-    const tabs = [['account','Mein Konto'],['management','Team Verwaltung'],['raceweek','Race Week'],['offers','Angebote'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
+    const tabs = [['account','Mein Konto'],['termine','Termine'],['management','Team Verwaltung'],['raceweek','Race Week'],['offers','Angebote'],['transactions','Transaktionen'],['cards','Karten'],['invoices','Rechnungen'],['contracts','Verträge'],['support','Support']];
     const tab = tabs.some(([key])=>key===currentTeamTab) ? currentTeamTab : 'account';
     const txRow = entry => `<tr><td>${date(entry.createdAt)}</td><td>${escapeHtml(entry.note)}</td><td><span class="eb-pill">${escapeHtml(cardName(entry))}</span></td><td class="eb-num ${entry.direction==='credit'?'eb-plus':'eb-minus'}">${entry.direction==='credit'?'+':'−'} ${money(entry.amount)}</td></tr>`;
     const txTable = (rows,empty='Noch keine Buchungen vorhanden.') => `<div class="portal-table-wrap"><table class="portal-table"><thead><tr><th>Datum</th><th>Verwendungszweck</th><th>Karte</th><th class="eb-num">Betrag</th></tr></thead><tbody>${rows.length?rows.map(txRow).join(''):`<tr><td colspan="4" class="portal-empty">${empty}</td></tr>`}</tbody></table></div>`;
@@ -871,12 +930,16 @@
     if (!base) {
       panel = '<section class="eb-card"><div class="portal-empty">Für dieses Team wurde noch keine Basiskarte gefunden. Bitte die Datenbank-Einrichtung (Schema) prüfen.</div></section>';
     } else if (tab==='account') {
+      const nextAppointments = data.appointments.filter(item=>item.teamId===selected.id && new Date(item.startsAt).getTime()>=Date.now()).sort((a,b)=>new Date(a.startsAt)-new Date(b.startsAt)).slice(0,3);
       panel = `<div class="eb-top">
         <section class="eb-card eb-main"><div class="eb-main-head"><div><div class="eb-muted">Hauptkonto</div><div class="eb-main-name">${escapeHtml(selected.name)} · ${escapeHtml(base.label)}</div></div><div class="eb-main-side"><small>Gesamt über alle Karten</small><strong>${money(balance(selected.id))}</strong></div></div>
           <div class="eb-amount">${money(cardBalance(base))}</div>
           ${held?`<div class="eb-hold">On hold: <strong>${money(held)}</strong></div>`:''}
           <div class="portal-actions"><button class="eb-btn" type="button" data-team-tab="invoices">Rechnung bezahlen</button><button class="eb-btn ghost" type="button" data-team-tab="cards">Geld verschieben</button></div></section>
+        <div class="eb-side-col">
         <aside class="eb-card eb-upcoming"><h3>Anstehende Zahlungen</h3>${openInvoices.length?`<ul class="eb-upcoming-list">${openInvoices.slice().sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,4).map(invoice=>`<li><span><strong>${escapeHtml(invoice.description)}</strong><small>fällig ${date(invoice.dueDate)}</small></span><b>${money(invoice.amount)}</b></li>`).join('')}</ul>`:'<p class="eb-upcoming-empty">Keine offenen Rechnungen.</p>'}</aside>
+        <aside class="eb-card eb-appt"><div class="eb-row-between"><h3>Nächste Termine</h3><button class="eb-link" type="button" data-team-tab="termine">Alle ansehen</button></div>${nextAppointments.length?`<ul class="eb-appt-list">${nextAppointments.map(item=>`<li><span class="appt-badge appt-${escapeHtml(item.category)}">${escapeHtml(appointmentCategoryName(item.category))}</span><span><strong>${escapeHtml(item.title)}</strong><small>${dateTime(item.startsAt)} Uhr${item.location?` · ${escapeHtml(item.location)}`:''}</small></span></li>`).join('')}</ul>`:'<p class="eb-muted">Keine kommenden Termine.</p>'}</aside>
+        </div>
       </div>
       <div class="eb-strip">${cards.map(card=>cardVisual(card,{attr:'data-team-tab="cards" role="button" tabindex="0"'})).join('')}${cards.length<MAX_CARDS_PER_TEAM?`<button class="vcard vcard-add" type="button" data-team-tab="cards"><span>＋</span>Kredit beantragen</button>`:''}</div>
       <div class="eb-bottom">
@@ -891,40 +954,39 @@
     } else if (tab==='management') {
       const teamDrivers = data.drivers.filter(driver=>driver.teamId===selected.id);
       const driverContracts = contracts.filter(contract=>contract.type==='driver').slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-      const scheduled = data.scheduledInvoices.filter(item=>item.teamId===selected.id).slice().sort((a,b)=>new Date(a.sendDate)-new Date(b.sendDate));
+      const scheduled = data.scheduledInvoices.filter(item=>item.teamId===selected.id).slice().sort((a,b)=>new Date(a.startDate)-new Date(b.startDate));
       const driverRow = driver => `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(driver.name)}</strong><small>${driver.number!=null?`Startnummer ${driver.number} · `:''}${escapeHtml(driver.nationality||'Nationalität offen')}${driver.license?` · Lizenz ${escapeHtml(driver.license)}`:''}</small></div><button class="portal-button" type="button" data-new-driver-contract="${driver.id}">Vertrag anlegen</button></div>`;
-      const contractRow = contract => { const driver=data.drivers.find(entry=>entry.id===contract.driverId); return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${driver?`${escapeHtml(driver.name)} · `:''}gültig bis ${date(contract.endDate)} · ${date(contract.createdAt)} eingereicht<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}<button class="helmet-btn" type="button" data-open-contract="${contract.id}" title="Vertrag im Seitenfenster öffnen" aria-label="Vertrag ${escapeHtml(contract.title)} öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></button><button class="portal-button" data-print-contract="${contract.id}">PDF</button></div></div>`; };
+      const contractRow = contract => contractCardHtml(contract,{actions:`<button class="portal-button" data-print-contract="${contract.id}">PDF</button>`});
       const scheduledRow = item => {
         const recurring = item.installmentsTotal>1;
-        const rateAmount = item.total!=null && recurring ? Math.floor(item.total/item.installmentsTotal) : item.amount;
         const progress = recurring ? `Rate ${item.installmentsSent}/${item.installmentsTotal}` : null;
-        const next = item.status==='active' && item.nextSendDate ? ` · nächste Rechnung ${date(item.nextSendDate)}` : '';
-        return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(item.description)}</strong><small>${recurring?`${money(rateAmount)} pro Rennen · gesamt ${money(item.total)} · ${progress}${next}`:`${money(item.amount)} · Rechnungsdatum ${date(item.sendDate)} · fällig ${date(item.dueDate)}`}</small></div><div class="portal-actions">${statusBadge(item.status)}${['pending','active'].includes(item.status)?`<button class="portal-button danger" type="button" data-delete-scheduled="${item.id}">Löschen</button>`:''}</div></div>`;
+        const next = item.status==='active' && item.nextSendDate ? ` · nächste Rate ${date(item.nextSendDate)}` : '';
+        return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(item.description)}</strong><small>${recurring?`${money(item.amount)} pro Rate · gesamt ${money(item.total)} · ${progress} · ${date(item.startDate)} – ${date(item.endDate)}${next}`:`Einmalzahlung ${money(item.total)} · am ${date(item.startDate)}`}</small></div><div class="portal-actions">${statusBadge(item.status)}${['pending','active'].includes(item.status)?`<button class="portal-button danger" type="button" data-delete-scheduled="${item.id}">Löschen</button>`:''}</div></div>`;
       };
       panel = `<section class="eb-card" id="team-verwaltung"><h3>Team Verwaltung</h3><p class="eb-muted">Lege deine Fahrer selbst an, erstelle Fahrerverträge im geführten Ablauf und sende sie der Verwaltung zur Finanzüberprüfung. Terminierte Rechnungen kannst du hier ebenfalls vorbereiten.</p></section>
       <div class="eb-two" style="margin-top:16px">
         <section class="eb-card"><div class="eb-row-between"><h3>Fahrer</h3><button class="eb-btn" type="button" data-new-driver-contract="">Neuer Fahrervertrag</button></div>
           ${teamDrivers.length?`<div class="portal-item-list">${teamDrivers.map(driverRow).join('')}</div>`:'<p class="eb-muted">Noch keine Fahrer angelegt. Starte mit „Neuer Fahrervertrag“ – der Fahrer wird im ersten Schritt des Workflows angelegt.</p>'}
         </section>
-        <section class="eb-card"><h3>Automatisierte Rechnung stellen</h3>
+        <section class="eb-card"><h3>Dauerauftrag / Rechnung terminieren</h3>
           <form class="portal-form" data-form="scheduled-invoice">
             <input type="hidden" name="teamId" value="${selected.id}">
             <label class="full">Beschreibung<input name="description" maxlength="500" required placeholder="z. B. Fahrerlöhne Saison 2026"></label>
             <label>Gesamtbetrag in EUR<input name="totalAmount" type="number" min="0.01" step="0.01" required></label>
-            <label>Aufteilen auf<input name="installments" type="number" min="1" max="52" value="16" required> <span class="eb-muted">Rennen (Raten)</span></label>
-            <label>Erste Rechnung am<input name="sendDate" type="date" required></label>
-            <label>Fällig jeweils am<input name="dueDate" type="date" required></label>
+            <label>Anzahl Raten<input name="installments" type="number" min="1" max="52" value="16" required> <span class="eb-muted">1 = Einmalzahlung</span></label>
+            <label>Startdatum (erste Rate)<input name="startDate" type="date" required></label>
+            <label>Enddatum (letzte Rate)<input name="endDate" type="date" required></label>
             <div class="full eb-rate-preview" data-rate-preview>Bitte Gesamtbetrag eingeben.</div>
-            <div class="portal-actions full"><button class="eb-btn">Wochenrechnung terminieren</button></div>
+            <div class="portal-actions full"><button class="eb-btn">Dauerauftrag terminieren</button></div>
           </form>
-          <p class="eb-muted">Der Gesamtbetrag wird automatisch durch die Anzahl Rennen geteilt. Ab dem Startdatum erscheint jede Woche eine Rechnung im E-Banking – nach der letzten Rate läuft die Reihe ab und kann neu gesetzt werden. Die Verwaltung schaltet jede Reihe manuell auf; bei Bedarf kann sie gelöscht werden, z. B. falls dein Team nicht antreten kann.</p>
+          <p class="eb-muted">Funktioniert wie ein Dauerauftrag: Der Gesamtbetrag wird automatisch auf die Anzahl Raten aufgeteilt – Standard sind die 16 Rennen der Saison. Mit 1 Rate zahlst du alles auf einmal. Die Raten erscheinen gleichmässig verteilt zwischen Start- und Enddatum im E-Banking, die letzte Rate kommt am Enddatum. Die Verwaltung schaltet jede Reihe manuell auf; bei Bedarf kann sie gelöscht werden, z. B. falls dein Team nicht antreten kann.</p>
         </section>
       </div>
       <section class="eb-card" style="margin-top:16px"><h3>Fahrerverträge</h3>
-        ${driverContracts.length?`<div class="portal-item-list">${driverContracts.map(contractRow).join('')}</div>`:'<div class="portal-empty">Noch keine Fahrerverträge eingereicht.</div>'}
+        ${driverContracts.length?`<div class="contract-list">${driverContracts.map(contractRow).join('')}</div>`:'<div class="portal-empty">Noch keine Fahrerverträge eingereicht.</div>'}
       </section>
-      <section class="eb-card" style="margin-top:16px"><h3>Terminierte Rechnungen</h3>
-        ${scheduled.length?`<div class="portal-item-list">${scheduled.map(scheduledRow).join('')}</div>`:'<div class="portal-empty">Keine terminierten Rechnungen vorhanden.</div>'}
+      <section class="eb-card" style="margin-top:16px"><h3>Daueraufträge &amp; terminierte Rechnungen</h3>
+        ${scheduled.length?`<div class="portal-item-list">${scheduled.map(scheduledRow).join('')}</div>`:'<div class="portal-empty">Keine Daueraufträge oder terminierten Rechnungen vorhanden.</div>'}
       </section>`;
     } else if (tab==='raceweek') {
       const estimateBlock = group => `<section class="eb-card"><h3>${escapeHtml(group.title)}</h3><div class="portal-item-list">${group.items.map(([label,cost])=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(label)}</strong></div><span class="eb-pill">${escapeHtml(cost)}</span></div>`).join('')}</div></section>`;
@@ -934,6 +996,13 @@
       </section>
       <div class="eb-two" style="margin-top:16px">${RACE_WEEK_ESTIMATES.map(estimateBlock).join('')}</div>
       <section class="eb-card" style="margin-top:16px"><h3>Hinweis</h3><p class="eb-muted">Alle Angaben sind unverbindliche Richtwerte als Vorgeschmack. Plant euer Budget mit Reserve – Schäden, Bergungen oder Fahrerwechsel können die Kosten deutlich erhöhen. Verbindlich sind ausschliesslich die Rechnungen der ZFC-Verwaltung.</p></section>`;
+    } else if (tab==='termine') {
+      const teamAppointments = data.appointments.filter(item=>item.teamId===selected.id).sort((a,b)=>new Date(a.startsAt)-new Date(b.startsAt));
+      const upcoming = teamAppointments.filter(item=>new Date(item.startsAt).getTime()>=Date.now());
+      const past = teamAppointments.filter(item=>new Date(item.startsAt).getTime()<Date.now()).reverse();
+      panel = `<section class="eb-card" id="termine"><h3>Termine von ${escapeHtml(selected.name)}</h3><p class="eb-muted">Diese Pflichttermine wurden von der ZFC-Verwaltung für dein Team gesetzt. Trainings, Testings und sonstige Termine erscheinen hier automatisch.</p>
+        <div class="appt-list" style="margin-top:14px">${upcoming.length?upcoming.map(item=>appointmentCardHtml(item)).join(''):'<div class="portal-empty">Aktuell sind keine Termine geplant.</div>'}</div></section>
+      ${past.length?`<section class="eb-card" style="margin-top:16px"><h3>Vergangene Termine</h3><div class="appt-list">${past.map(item=>appointmentCardHtml(item)).join('')}</div></section>`:''}`;
     } else if (tab==='transactions') {
       panel = `${statementSection(selected.id)}<section class="eb-card" style="margin-top:16px"><h3>Alle Kontobewegungen</h3>${txTable(bookings)}</section>`;
     } else if (tab==='cards') {
@@ -946,7 +1015,7 @@
     } else if (tab==='invoices') {
       panel = `<section class="eb-card" id="rechnungen"><h3>Rechnungen</h3><div class="portal-item-list">${allInvoices.length?allInvoices.slice().reverse().map(invoice=>{const payCard=cards.find(card=>card.id===invoice.cardId);return `<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(invoice.number)} · ${escapeHtml(invoice.description)}</strong><small>${money(invoice.amount)} · fällig ${date(invoice.dueDate)}${invoice.status==='payment_requested'&&payCard?` · on hold auf ${escapeHtml(payCard.label)}`:''}</small></div><div class="portal-actions">${statusBadge(invoice.status)}<button class="portal-button" data-print-invoice="${invoice.id}">PDF / Drucken</button>${invoice.status==='open'?`<button class="eb-btn" data-request-payment="${invoice.id}">Jetzt bezahlen</button>`:''}</div></div>`;}).join(''):'<div class="portal-empty">Keine Rechnungen vorhanden.</div>'}</div></section>`;
     } else if (tab==='contracts') {
-      panel = `<section class="eb-card" id="vertraege"><h3>Verträge</h3><div class="portal-item-list">${contracts.length?contracts.slice().reverse().map(contract=>`<div class="portal-item"><div class="portal-item-copy"><strong>${escapeHtml(contract.title)}</strong><small>${escapeHtml(contractTypeName(contract.type))} · gültig bis ${date(contract.endDate)}<br>${escapeHtml(contract.terms)}</small></div><div class="portal-actions">${statusBadge(contract.status)}${contract.type==='driver'?`<button class="helmet-btn" type="button" data-open-contract="${contract.id}" title="Vertrag im Seitenfenster öffnen" aria-label="Vertrag ${escapeHtml(contract.title)} öffnen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8.5 8.5 0 0 0-8.5 8.5c0 1.9.6 3.3 1.4 4.4.5.7 1.1 1.3 1.1 2.1v1.5a1.5 1.5 0 0 0 1.5 1.5H14a1.5 1.5 0 0 0 1.5-1.5v-1h1.75a2.25 2.25 0 0 0 2.25-2.25V15h.75a.75.75 0 0 0 .75-.75v-1.5A8.5 8.5 0 0 0 12 3z"/><circle cx="9" cy="11.5" r="1.1" fill="#0f141c"/></svg></button>`:''}<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="eb-btn" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}</div></div>`).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section>`;
+      panel = `<section class="eb-card" id="vertraege"><h3>Verträge</h3><p class="eb-muted">Klicke auf eine Vertrags-Box, um den vollständigen Vertragstext und alle Einzelheiten einzusehen.</p><div class="contract-list" style="margin-top:12px">${contracts.length?contracts.slice().reverse().map(contract=>contractCardHtml(contract,{actions:`<button class="portal-button" data-print-contract="${contract.id}">PDF</button>${contract.status==='pending'?`<button class="eb-btn" data-sign-contract="${contract.id}">Annehmen</button><button class="portal-button" data-decline-contract="${contract.id}">Ablehnen</button>`:''}`})).join(''):'<div class="portal-empty">Keine Vertragsentwürfe vorhanden.</div>'}</div></section>`;
     } else {
       panel = `<div class="eb-two"><section class="eb-card" id="meldungen"><h3>Problem oder Anliegen melden</h3><form class="portal-form" data-form="support-ticket">
           <input type="hidden" name="teamId" value="${selected.id}">
@@ -1075,7 +1144,9 @@
             <p class="portal-muted">Fordere ein individuelles Angebot für dein Team an.</p>
             <form class="portal-form" data-form="purchase">
               <input type="hidden" name="offerId" value="${escapeHtml(offer.id)}">
-              <label class="full">Team<select name="teamId" required>${teamOptions(window.zfcProfile?.team_id||'')}</select></label>
+              ${window.zfcProfile?.team_id
+                ? `<input type="hidden" name="teamId" value="${escapeHtml(window.zfcProfile.team_id)}"><p class="portal-muted full">Du sendest diese Anfrage als Teamchef für <strong>${escapeHtml(teamName(window.zfcProfile.team_id))}</strong>. Sie erscheint direkt bei der Verwaltung und in deinem E-Banking.</p>`
+                : `<label class="full">Team<select name="teamId" required>${teamOptions('')}</select></label>`}
               <label class="full">Ansprechpartner<input name="contactName" maxlength="80" required value="${escapeHtml(window.zfcProfile?.display_name||'')}"></label>
               <label class="full">E-Mail<input name="email" type="email" maxlength="254" required placeholder="name@team.ch" value="${escapeHtml(window.zfcProfile?.email||'')}"></label>
               ${d.products.length?`<label class="full">Gewünschte ${escapeHtml(d.productsTitle||'Produkte')}<select name="products" multiple size="${Math.min(d.products.length,4)}">${d.products.map(product=>`<option value="${escapeHtml(product.title)}">${escapeHtml(product.title)}</option>`).join('')}</select><small class="portal-muted">Mehrfachauswahl mit Ctrl / Cmd möglich.</small></label>`:''}
@@ -1150,21 +1221,29 @@
     return invoice;
   }
 
-  // Demo-Modus: terminierte Rechnungen erscheinen am gewählten Datum im E-Banking.
-  // Wiederkehrende Rechnungen stellen pro Fälligkeit eine Rate (Gesamtbetrag / Raten).
+  // Demo-Modus: Dauerauftrag – Raten erscheinen gleichmässig verteilt zwischen
+  // Start- und Enddatum im E-Banking (letzte Rate am Enddatum, Fälligkeit je +7 Tage).
   function materializeLocalScheduledInvoices() {
     const today = new Date().toISOString().slice(0,10);
     const addDays = (iso, days) => { const d = new Date(`${iso}T12:00:00`); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); };
+    const rateDate = (item, index) => {
+      if (item.installmentsTotal<=1) return item.startDate;
+      const span = Math.round((new Date(`${item.endDate}T12:00:00`)-new Date(`${item.startDate}T12:00:00`))/86400000);
+      const next = addDays(item.startDate, Math.round(span*index/(item.installmentsTotal-1)));
+      // Nie hinter das Enddatum und nie rückwärts (z. B. bei migrierten Reihen).
+      return next>item.endDate ? item.endDate : next;
+    };
     data.scheduledInvoices.forEach(item=>{
-      while (item.status==='active' && item.installmentsSent<item.installmentsTotal && (item.nextSendDate||item.sendDate)<=today) {
+      while (item.status==='active' && item.installmentsSent<item.installmentsTotal && (item.nextSendDate||item.startDate)<=today) {
         const rateIndex = item.installmentsSent+1;
-        const rateAmount = item.total!=null && item.installmentsTotal>1 ? Math.floor(item.total/item.installmentsTotal) : item.amount;
+        const baseRate = Math.floor(item.total/item.installmentsTotal);
+        const rateAmount = rateIndex===item.installmentsTotal ? item.total-baseRate*(item.installmentsTotal-1) : baseRate;
         const description = item.installmentsTotal>1 ? `${item.description} (Rate ${rateIndex}/${item.installmentsTotal})` : item.description;
-        const dueDate = item.dueDate>=(item.nextSendDate||item.sendDate) ? item.dueDate : (item.nextSendDate||item.sendDate);
-        const invoice = makeInvoice(item.teamId, rateAmount, description, dueDate, `AUTO-${item.id.slice(0,8)}`);
+        const sendDate = item.nextSendDate||item.startDate;
+        const invoice = makeInvoice(item.teamId, rateAmount, description, addDays(sendDate,7), `AUTO-${item.id.slice(0,8)}`);
         item.installmentsSent = rateIndex;
         item.invoiceId = invoice.id;
-        item.nextSendDate = addDays(item.nextSendDate||item.sendDate, item.intervalWeeks*7);
+        item.nextSendDate = rateIndex>=item.installmentsTotal ? null : rateDate(item, rateIndex);
         if (rateIndex>=item.installmentsTotal) item.status='sent';
       }
     });
@@ -1492,15 +1571,16 @@
       const teamId = window.zfcProfile&&window.zfcProfile.role!=='admin' ? window.zfcProfile.team_id : fields.teamId;
       if (!teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
       if (!(fields.description||'').trim()) throw new Error('Bitte eine Beschreibung eingeben.');
-      if (!fields.sendDate || !fields.dueDate) throw new Error('Bitte Startdatum und Fälligkeitsdatum angeben.');
-      if (fields.dueDate<fields.sendDate) throw new Error('Das Fälligkeitsdatum muss am oder nach dem Startdatum liegen.');
+      if (!fields.startDate || !fields.endDate) throw new Error('Bitte Start- und Enddatum angeben.');
+      if (fields.endDate<fields.startDate) throw new Error('Das Enddatum muss am oder nach dem Startdatum liegen.');
       const total = cents(fields.totalAmount);
-      const installments = Math.max(1, Math.min(52, Math.round(Number(fields.installments)||1)));
+      const installments = Math.max(1, Math.min(52, Math.round(Number(fields.installments)||16)));
+      if (installments>1 && fields.endDate<=fields.startDate) throw new Error('Bei mehreren Raten muss das Enddatum nach dem Startdatum liegen.');
       const rate = Math.floor(total/installments);
       if (rate<=0) throw new Error('Der Gesamtbetrag geteilt durch die Raten muss mindestens 0,01 EUR ergeben.');
-      let item = {id:uid(),teamId,description:fields.description.trim(),amount:rate,sendDate:fields.sendDate,dueDate:fields.dueDate,status:'pending',invoiceId:null,total,installmentsTotal:installments,installmentsSent:0,intervalWeeks:1,nextSendDate:fields.sendDate,createdAt:new Date().toISOString()};
+      let item = {id:uid(),teamId,description:fields.description.trim(),amount:rate,total,startDate:fields.startDate,endDate:fields.endDate,status:'pending',invoiceId:null,installmentsTotal:installments,installmentsSent:0,nextSendDate:fields.startDate,createdAt:new Date().toISOString()};
       if (window.zfcSupabase) {
-        const {data:row,error} = await window.zfcSupabase.from('scheduled_invoices').insert({team_id:teamId,description:item.description,amount_cents:rate,total_cents:total,installments_total:installments,installments_sent:0,interval_weeks:1,send_date:item.sendDate,due_date:item.dueDate,next_send_date:item.sendDate,status:'pending',created_by:window.zfcProfile.id}).select('*').single();
+        const {data:row,error} = await window.zfcSupabase.from('scheduled_invoices').insert({team_id:teamId,description:item.description,total_cents:total,amount_cents:rate,start_date:item.startDate,end_date:item.endDate,installments_total:installments,installments_sent:0,next_send_date:item.startDate,status:'pending',created_by:window.zfcProfile.id}).select('*').single();
         if (error) throw new Error(`Rechnung konnte nicht terminiert werden: ${error.message}`);
         item = mapScheduledInvoice(row);
       }
@@ -1508,7 +1588,7 @@
       if (save()) {
         if ($('#portal-root')?.dataset.portalPage==='team') { currentTeamTab='management'; renderTeam(teamId); }
         else renderAdminTab('finance');
-        showToast('Rechnung terminiert. Die Verwaltung schaltet sie manuell auf.');
+        showToast(installments>1 ? `Dauerauftrag terminiert: ${money(rate)} × ${installments} Raten. Die Verwaltung schaltet ihn manuell auf.` : 'Einmalzahlung terminiert. Die Verwaltung schaltet sie manuell auf.');
       }
     } else if (form.dataset.form==='support-ticket') {
       let ticket={id:uid(),teamId:fields.teamId,category:fields.category,subject:fields.subject.trim(),details:fields.details.trim(),status:'open',createdAt:new Date().toISOString()};
@@ -1519,6 +1599,20 @@
       }
       data.tickets.push(ticket);
       if (save()) { renderTeam(fields.teamId); showToast('Meldung wurde eingereicht.'); }
+    } else if (form.dataset.form==='appointment') {
+      const teamId = fields.teamId;
+      if (!teams.some(team=>team.id===teamId)) throw new Error('Bitte ein gültiges Team auswählen.');
+      if (!(fields.title||'').trim()) throw new Error('Bitte einen Titel für den Termin eingeben.');
+      const startsAt = new Date(fields.startsAt||'');
+      if (!fields.startsAt || Number.isNaN(startsAt.getTime())) throw new Error('Bitte Datum und Uhrzeit des Termins angeben.');
+      let item = {id:uid(),teamId,title:fields.title.trim(),category:APPOINTMENT_CATEGORIES.some(([key])=>key===fields.category)?fields.category:'sonstiges',startsAt:startsAt.toISOString(),location:(fields.location||'').trim(),notes:(fields.notes||'').trim(),createdAt:new Date().toISOString()};
+      if (window.zfcSupabase) {
+        const {data:row,error} = await window.zfcSupabase.from('team_appointments').insert({team_id:teamId,title:item.title,category:item.category,starts_at:item.startsAt,location:item.location,notes:item.notes,created_by:window.zfcProfile.id}).select('*').single();
+        if (error) throw new Error(`Termin konnte nicht gespeichert werden: ${error.message}`);
+        item = mapAppointment(row);
+      }
+      data.appointments.push(item);
+      if (save()) { renderAdminTab('appointments'); showToast(`Termin gespeichert und im E-Banking von ${teamName(teamId)} aufgeschaltet.`); }
     } else if (form.dataset.form==='card-create') {
       const teamId = fields.teamId;
       if (teamCards(teamId).length>=MAX_CARDS_PER_TEAM) throw new Error('Dieses Team besitzt bereits drei Karten.');
@@ -1568,9 +1662,28 @@
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Bitte eine gültige E-Mail-Adresse eingeben.');
       const selectedProducts = new FormData(form).getAll('products').map(value=>String(value).trim()).filter(Boolean);
       const notes = [selectedProducts.length?`Gewünschte Produkte: ${selectedProducts.join(', ')}`:'', (fields.notes||'').trim()].filter(Boolean).join('\n\n');
+      // Eingeloggte Teamchefs (auch Konzern / Admin in Doppelrolle) senden die Anfrage
+      // direkt in die Datenbank – sie erscheint sofort im Admin-Panel unter Kaufanfragen.
+      const profile = window.zfcProfile;
+      if (window.zfcSupabase && profile?.team_id) {
+        const {data: row, error} = await window.zfcSupabase.from('sponsor_orders').insert({
+          offer_id:offer.id,team_id:profile.team_id,offer_name:offer.name,amount_cents:offer.amount,
+          category:offer.category||'sponsoring',offer_terms:offer.terms||'',
+          contact_name:fields.contactName.trim(),email:email.toLowerCase(),
+          company:(fields.company||'').trim(),billing_address:(fields.billingAddress||'').trim(),
+          customer_notes:notes,status:'pending',created_by:profile.id
+        }).select('*').single();
+        if (error) throw new Error(`Anfrage konnte nicht gesendet werden: ${error.message}`);
+        data.orders.unshift(mapOrder(row));
+        save();
+        form.closest('dialog')?.close(); form.reset();
+        await refreshTeamInquiries();
+        showToast('Anfrage wurde an die Verwaltung gesendet.');
+        return;
+      }
       if (window.zfcSupabase) {
         const { error } = await window.zfcSupabase.functions.invoke('public-purchase', {body:{offerId:offer.id,teamId:fields.teamId,contactName:fields.contactName,email,company:fields.company||'',billingAddress:fields.billingAddress||'',notes}});
-        if (error) throw new Error('Anfrage konnte nicht gesendet werden. Bitte später erneut versuchen.');
+        if (error) throw new Error('Anfrage konnte nicht gesendet werden. Bitte melde dich als Teamchef an oder versuche es später erneut.');
         form.closest('dialog')?.close(); form.reset();
         await refreshTeamInquiries();
         showToast('Anfrage wurde an die Verwaltung gesendet.');
@@ -1667,11 +1780,15 @@
   }
 
   function mapScheduledInvoice(row) {
-    return {id:row.id,teamId:row.team_id,description:row.description,amount:Number(row.amount_cents),sendDate:row.send_date,dueDate:row.due_date,status:row.status,invoiceId:row.invoice_id||null,total:row.total_cents!=null?Number(row.total_cents):null,installmentsTotal:Number(row.installments_total)||1,installmentsSent:Number(row.installments_sent)||0,intervalWeeks:Number(row.interval_weeks)||1,nextSendDate:row.next_send_date||null,createdAt:row.created_at};
+    return {id:row.id,teamId:row.team_id,description:row.description,amount:Number(row.amount_cents),total:Number(row.total_cents),startDate:row.start_date,endDate:row.end_date,status:row.status,invoiceId:row.invoice_id||null,installmentsTotal:Number(row.installments_total)||1,installmentsSent:Number(row.installments_sent)||0,nextSendDate:row.next_send_date||null,createdAt:row.created_at};
   }
 
   function mapTicket(row) {
     return {id:row.id,teamId:row.team_id,category:row.category,subject:row.subject,details:row.details,status:row.status,createdAt:row.created_at};
+  }
+
+  function mapAppointment(row) {
+    return {id:row.id,teamId:row.team_id,title:row.title,category:row.category||'sonstiges',startsAt:row.starts_at,location:row.location||'',notes:row.notes||'',createdAt:row.created_at};
   }
 
   async function loadSharedRecords(page) {
@@ -1692,11 +1809,12 @@
       let entriesQuery = window.zfcSupabase.from('account_entries').select('*').order('created_at',{ascending:false});
       if (page==='admin' || page==='team') {
         try { await window.zfcSupabase.rpc('materialize_scheduled_invoices'); } catch { /* Migration evtl. noch nicht eingespielt */ }
-        const [{data: cardRows, error: cardsError}, {data: requestRows, error: requestsError}, {data: driverRows, error: driversError}, {data: scheduledRows, error: scheduledError}] = await Promise.all([
+        const [{data: cardRows, error: cardsError}, {data: requestRows, error: requestsError}, {data: driverRows, error: driversError}, {data: scheduledRows, error: scheduledError}, {data: appointmentRows, error: appointmentsError}] = await Promise.all([
           window.zfcSupabase.from('team_cards').select('*').order('created_at',{ascending:true}),
           window.zfcSupabase.from('card_requests').select('*').order('created_at',{ascending:false}),
           window.zfcSupabase.from('drivers').select('*').order('created_at',{ascending:true}),
-          window.zfcSupabase.from('scheduled_invoices').select('*').order('send_date',{ascending:true})
+          window.zfcSupabase.from('scheduled_invoices').select('*').order('start_date',{ascending:true}),
+          window.zfcSupabase.from('team_appointments').select('*').order('starts_at',{ascending:true})
         ]);
         if (cardsError) throw cardsError;
         if (requestsError) throw requestsError;
@@ -1704,6 +1822,7 @@
         data.cardRequests = requestRows.map(mapCardRequest);
         if (!driversError && driverRows) data.drivers = driverRows.map(mapDriver);
         if (!scheduledError && scheduledRows) data.scheduledInvoices = scheduledRows.map(mapScheduledInvoice);
+        if (!appointmentsError && appointmentRows) data.appointments = appointmentRows.map(mapAppointment);
       }
       if (page==='team') entriesQuery=entriesQuery.eq('team_id',selectedTeamId);
       if (page==='admin' || page==='team') {
@@ -1764,6 +1883,7 @@
       data.cardRequests = Array.isArray(data.cardRequests) ? data.cardRequests : [];
       data.drivers = Array.isArray(data.drivers) ? data.drivers : [];
       data.scheduledInvoices = Array.isArray(data.scheduledInvoices) ? data.scheduledInvoices : [];
+      data.appointments = Array.isArray(data.appointments) ? data.appointments : [];
       if (!window.zfcSupabase) { ensureLocalBasicCards(); materializeLocalScheduledInvoices(); }
       if(data.home.title==='Built to race.' && data.home.claim==='Made to rise.'){
         Object.assign(data.home,{title:'Herzlich willkommen',claim:'bei ZFC.',intro:'Entdecke Angebote und Möglichkeiten rund um unsere Teams. Wähle den Bereich, der dich interessiert.'});
@@ -1788,7 +1908,7 @@
     startRealtime(page);
   }
 
-  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings','team_cards','card_requests','drivers','scheduled_invoices'];
+  const REALTIME_TABLES = ['teams','account_entries','sponsor_offers','sponsor_orders','invoices','contracts','support_tickets','profiles','site_settings','team_cards','card_requests','drivers','scheduled_invoices','team_appointments'];
 
   function startRealtime(page) {
     const client = window.zfcSupabase;
@@ -1797,7 +1917,7 @@
     const userIsEditing = () => document.querySelector('dialog[open]') ||
       document.activeElement?.matches?.('input,textarea,select');
     let notify = false;
-    const snapshot = () => JSON.stringify([data.offers,data.orders,data.invoices,data.contracts,data.bookings,data.tickets,data.cards,data.cardRequests,data.drivers,data.scheduledInvoices,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
+    const snapshot = () => JSON.stringify([data.offers,data.orders,data.invoices,data.contracts,data.bookings,data.tickets,data.cards,data.cardRequests,data.drivers,data.scheduledInvoices,data.appointments,data.home,data.teamLogos,teams.map(team=>team.initialBalance),adminProfiles]);
     const refresh = async () => {
       if (busy) { again = true; return; }
       if (userIsEditing()) { timer = setTimeout(refresh, 2000); return; }
@@ -1875,7 +1995,30 @@
     const resetLogo = event.target.closest('[data-reset-logo]');
     if (resetLogo) { try { if (await storeTeamLogo(resetLogo.dataset.resetLogo,'')) { renderAdminTab('ebanking'); showToast('Standard-Logo wiederhergestellt.'); } } catch (error) { showToast(error.message,true); } return; }
     const openContract = event.target.closest('[data-open-contract]');
-    if (openContract) { const item=data.contracts.find(entry=>entry.id===openContract.dataset.openContract); if(item) openContractDrawer(item); return; }
+    if (openContract) {
+      // Klicks auf Buttons/Links innerhalb der Vertrags-Box lösen deren eigene Aktion aus (Handler weiter unten).
+      const interactive = event.target.closest('button, a, input, select, textarea, label');
+      const ownClick = !interactive || interactive === openContract || !openContract.contains(interactive);
+      if (ownClick) {
+        const item=data.contracts.find(entry=>entry.id===openContract.dataset.openContract);
+        if(item) openContractDrawer(item);
+        return;
+      }
+    }
+    const deleteAppointment = event.target.closest('[data-delete-appointment]');
+    if (deleteAppointment && confirm('Diesen Termin wirklich löschen? Er verschwindet damit auch aus dem E-Banking des Teams.')) {
+      const item = data.appointments.find(entry=>entry.id===deleteAppointment.dataset.deleteAppointment);
+      if (!item) return;
+      try {
+        if (window.zfcSupabase) {
+          const {error} = await window.zfcSupabase.from('team_appointments').delete().eq('id',item.id);
+          if (error) throw error;
+        }
+        data.appointments = data.appointments.filter(entry=>entry.id!==item.id);
+        if (save()) { renderAdminTab('appointments'); showToast('Termin gelöscht.'); }
+      } catch (error) { showToast(`Termin konnte nicht gelöscht werden: ${error.message||''}`,true); }
+      return;
+    }
     if (event.target.closest('[data-close-contract-drawer]')) { closeContractDrawer(); return; }
     const printContract = event.target.closest('[data-print-contract]');
     if (printContract) { const item=data.contracts.find(entry=>entry.id===printContract.dataset.printContract);if(item)contractPrint(item);return; }
@@ -2104,7 +2247,7 @@
         }
         item.status='active';
         if (!window.zfcSupabase) materializeLocalScheduledInvoices();
-        if (save()) { renderAdminTab('finance'); showToast(`Rechnung aufgeschaltet. Sie erscheint am ${date(item.sendDate)} im E-Banking von ${teamName(item.teamId)}.`); }
+        if (save()) { renderAdminTab('finance'); showToast(`Dauerauftrag aufgeschaltet. Die erste Rate erscheint am ${date(item.startDate)} im E-Banking von ${teamName(item.teamId)}.`); }
       } catch (error) { activateScheduled.disabled=false; showToast(`Aufschaltung fehlgeschlagen: ${error.message||''}`,true); }
       return;
     }
@@ -2240,6 +2383,15 @@
     if (print) { const invoice=data.invoices.find(item=>item.id===print.dataset.printInvoice);if(invoice)invoicePrint(invoice); }
   });
 
+  document.addEventListener('keydown', event => {
+    if (event.key!=='Enter' && event.key!==' ') return;
+    const card = event.target.closest?.('.contract-card[data-open-contract]');
+    if (!card || event.target.closest('button, a, input, select, textarea')) return;
+    event.preventDefault();
+    const item = data.contracts.find(entry=>entry.id===card.dataset.openContract);
+    if (item) openContractDrawer(item);
+  });
+
   document.addEventListener('input', event => {
     if (event.target.matches('[name="itemAmount"]')) updateInvoiceTotal(event.target.closest('[data-invoice-items]'));
     if (event.target.closest('form[data-form="scheduled-invoice"]')) {
@@ -2247,8 +2399,14 @@
       const preview = form.querySelector('[data-rate-preview]');
       if (!preview) return;
       const total = Math.round(Number(form.elements.totalAmount?.value)*100)||0;
-      const installments = Math.max(1, Math.round(Number(form.elements.installments?.value)||1));
-      preview.textContent = total>0 ? `Rate pro Rennen: ${money(Math.floor(total/installments))} · ${installments}× wöchentlich · letzte Rate ca. ${date(new Date(new Date(`${form.elements.sendDate||new Date().toISOString().slice(0,10)}T12:00:00`).getTime()+(installments-1)*7*86400000))}` : 'Bitte Gesamtbetrag eingeben.';
+      const installments = Math.max(1, Math.min(52, Math.round(Number(form.elements.installments?.value)||16)));
+      const start = form.elements.startDate?.value, end = form.elements.endDate?.value;
+      if (total<=0) { preview.textContent='Bitte Gesamtbetrag eingeben.'; return; }
+      const rate = Math.floor(total/installments);
+      const lastRate = total - rate*(installments-1);
+      preview.textContent = installments>1
+        ? `Rate: ${money(rate)} × ${installments} Raten${lastRate!==rate?` (letzte Rate ${money(lastRate)})`:''}${start&&end?` · ${date(start)} bis ${date(end)}`:''}`
+        : `Einmalzahlung: ${money(total)}${start?` am ${date(start)}`:''}`;
     }
     if (event.target.matches('form[data-form="contract"] textarea[name="terms"]')) {
       event.target.dataset.manual = event.target.value.trim() ? '1' : '';

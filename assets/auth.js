@@ -5,8 +5,9 @@
   window.zfcProfile = null;
 
   async function initializeClient() {
-    if (!config.url || !config.anonKey) {
-      clientError = 'Supabase-URL oder Publishable-Key fehlt in der Client-Konfiguration.';
+    const isPlaceholder = value => !value || /DEIN-|DEINE-|YOUR_/i.test(String(value));
+    if (isPlaceholder(config.url) || isPlaceholder(config.anonKey)) {
+      clientError = 'Supabase ist noch nicht konfiguriert. Trage die URL und den anon key deines neuen Projekts in assets/supabase-config.js ein.';
       return null;
     }
 
